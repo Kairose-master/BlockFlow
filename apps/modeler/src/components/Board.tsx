@@ -9,6 +9,7 @@ import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import bc from "@blockflow/bpmn/moddle/bc.json";
 import type { IR } from "@blockflow/ir";
 import { api, short } from "@/lib/api";
+import { useRouter } from "next/navigation";
 import { useUser } from "./Shell";
 import { TaskForm } from "./TaskForm";
 
@@ -49,6 +50,7 @@ function fmtLeft(sec: number): string {
 
 export function Board({ address }: { address: string }) {
   const user = useUser();
+  const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
   const [data, setData] = useState<BoardData | null>(null);
@@ -171,6 +173,17 @@ export function Board({ address }: { address: string }) {
           {data.supersededBy && <a className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 underline" href={`/processes/${data.supersededBy}`}>이전 버전 — 새 버전으로 이동</a>}
           {data.paused && <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">일시정지</span>}
           <span className="flex-1" />
+          <button className="btn" data-testid="edit-diagram" title="이 다이어그램을 모델러에서 열어요. 고쳐서 배포하면 새 버전(C6)이 돼요."
+            onClick={() => {
+              try {
+                sessionStorage.setItem("blockflow.open", data.xml);
+              } catch {
+                /* */
+              }
+              router.push("/");
+            }}>
+            다이어그램 편집 (새 버전)
+          </button>
           <button className="btn btn-primary" onClick={() => { setRoleChoice(Object.fromEntries(data.ir.roles.map((r, i) => [r.key, users[(i + 1) % Math.max(users.length, 1)]?.address ?? ""]))); setCreating(true); }} disabled={data.paused || !!data.supersededBy} data-testid="new-instance">
             새 건 시작
           </button>

@@ -60,7 +60,8 @@ export interface TaskCtx {
   inMask: string;
   outMask: string;
   taskConst: string;
-  sets: { variable: string }[];
+  /** vars[id].variable = param (함수 이름과 같은 변수는 매개변수 이름에 _ 를 붙여 섀도잉 경고를 피한다) */
+  sets: { variable: string; param: string }[];
   /** L1 결제: 완료 후 transferFrom(msg.sender, to, amount) */
   payment?: { token: string; to: string; amountVar: string };
 }
@@ -181,7 +182,8 @@ export function buildContext(ir: IR): TemplateContext {
   const usedFnNames = new Set<string>();
   const taskCtxs: TaskCtx[] = tasks.map((t, i) => {
     const fnName = uniqueName(t.name, usedFnNames);
-    const params = ["uint256 id", ...t.inputs.map((inp) => `${varType.get(inp.variable)} ${inp.variable}`)].join(", ");
+    const paramName = (v: string) => (v === fnName ? `${v}_` : v);
+    const params = ["uint256 id", ...t.inputs.map((inp) => `${varType.get(inp.variable)} ${paramName(inp.variable)}`)].join(", ");
     const sets = t.inputs.length ? `  sets: ${t.inputs.map((x) => x.variable).join(", ")}` : "";
     const pays = t.payment ? `  pays: ${t.payment.amountVar} → ${"role" in t.payment.to ? t.payment.to.role : t.payment.to.address}` : "";
     const ctx: TaskCtx = {
@@ -192,7 +194,7 @@ export function buildContext(ir: IR): TemplateContext {
       inMask: mask(t.in),
       outMask: mask(t.out),
       taskConst: taskConstNames[i]!,
-      sets: t.inputs.map((x) => ({ variable: x.variable })),
+      sets: t.inputs.map((x) => ({ variable: x.variable, param: paramName(x.variable) })),
     };
     if (t.payment) {
       ctx.payment = {

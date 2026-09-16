@@ -73,7 +73,9 @@ BLOCKFLOW_RPC_URL=http://127.0.0.1:8545 pnpm modeler   # 실제 JSON-RPC 모드 
 | C6 프로세스 버전 교체 | 완료. 같은 프로세스를 다시 배포하면 새 버전이 되고, 이전 버전은 새 건을 받지 않는다(진행 중인 건은 이전 버전에서 끝냄, 8.2 기본 정책) |
 | L1 결제 태스크 (`bc:payToken`·`bc:payTo`·`bc:payAmountVar`) | 완료. 완료 시 담당자가 ERC-20 을 역할/주소에 전송 (transferFrom, nonReentrant + CEI, 6.5). 예시 `invoice-payment.bpmn`, 생성 Foundry 테스트가 토큰 목을 심어 검증 |
 | L1 타이머 경계 이벤트 (`bc:deadlineVar` 또는 `bc:deadlineSeconds`) | 완료. 태스크 활성화 시각(startedAt)+기한이 지나면 누구나 `expire{Task}(id)` 로 만료 경로 진행. 예시 `leave-request.bpmn`, 보드에 남은 시간·"만료 처리"·(로컬) 시간 건너뛰기 |
-| L1 오라클·메시지·OR 게이트웨이, 버전 교체 투표, 신용서비스 프리셋 | 미구현 |
+| 신용서비스 프리셋 (앵커 논문 도메인) | 완료. `credit-review.bpmn` "신용 심사 (템플릿)" — 신청·평가(심사 기한 타이머)·고액 위원회 승인·약정 지급 |
+| 모델러 초안 자동 저장·복원, 보드 → "다이어그램 편집 (새 버전)" | 완료 |
+| L1 오라클·메시지·OR 게이트웨이, 버전 교체 투표 | 미구현 |
 
 남은 것: 임베디드 지갑 + 가스 스폰서(9장), Postgres/IPFS 저장소, 나머지 L1 요소. `docs/DESIGN.md` 로드맵 참고.
 

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  신용 심사 (템플릿). 앵커 논문(薄钧戈 2022, 신용 서비스 BPMN 범식)의 도메인 프리셋 (가이드 2.1, 4.3).
+  레인: 신청인 / 심사역 / 심사위원회 / 지급 담당.
+  [시작] → (신청인) 대출 신청{amount, docHash}
+        → (심사역) 신용 평가{score} ─⏰ reviewWithin 초 → [종료:심사 지연]
+        → ◇ score >= 60 ? ─default→ [종료:거절]
+             yes → ◇ amount > 50000 ? ─yes→ (위원회) 승인{approved} → ◇ approved? ─default→ [종료:거절]
+                                                                              yes → ◇합류
+                                       default ─────────────────────────────────→ ◇합류
+        ◇합류 → (지급 담당) 약정·지급{contractHash} → [종료:실행]
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_CreditReview" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="CreditReview" name="신용 심사 (템플릿)" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="amount" type="uint256"/>
+        <bc:variable name="docHash" type="bytes32"/>
+        <bc:variable name="reviewWithin" type="uint256"/>
+        <bc:variable name="score" type="uint256"/>
+        <bc:variable name="approved" type="bool"/>
+        <bc:variable name="contractHash" type="bytes32"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Applicant" name="신청인" bc:roleKey="Applicant">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Apply</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Officer" name="심사역" bc:roleKey="Officer">
+        <bpmn:flowNodeRef>Task_Score</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_Review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Score</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Amount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Delayed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Committee" name="심사위원회" bc:roleKey="Committee">
+        <bpmn:flowNodeRef>Task_Approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Approved</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Disburser" name="지급 담당" bc:roleKey="Disburser">
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Disburse</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Done</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Apply" name="대출 신청" bc:fn="apply_" bc:tag="APPLY">
+      <bpmn:extensionElements>
+        <bc:inputs>
+          <bc:input variable="amount" label="신청 금액"/>
+          <bc:input variable="docHash" label="증빙 서류"/>
+          <bc:input variable="reviewWithin" label="심사 기한(초)"/>
+        </bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Score" name="신용 평가" bc:fn="score" bc:tag="SCORE">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="score" label="신용 점수 (0~100)"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:boundaryEvent id="Timer_Review" name="심사 기한" attachedToRef="Task_Score" bc:deadlineVar="reviewWithin">
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_Review"/>
+    </bpmn:boundaryEvent>
+    <bpmn:exclusiveGateway id="Gateway_Score" name="점수 통과?" default="Flow_5">
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_Amount" name="고액인가?" default="Flow_7">
+      <bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Approve" name="위원회 승인" bc:fn="approve">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="approved" label="승인 여부"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="승인?" default="Flow_10">
+      <bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing><bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_Join" name="합류">
+      <bpmn:incoming>Flow_7</bpmn:incoming><bpmn:incoming>Flow_9</bpmn:incoming><bpmn:outgoing>Flow_Join</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Disburse" name="약정·지급" bc:fn="disburse">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="contractHash" label="약정서"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_Join</bpmn:incoming><bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Done" name="실행"><bpmn:incoming>Flow_12</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="거절" bc:outcome="rejected"><bpmn:incoming>Flow_5</bpmn:incoming><bpmn:incoming>Flow_10</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Delayed" name="심사 지연" bc:outcome="delayed"><bpmn:incoming>Flow_11</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Apply"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Apply" targetRef="Task_Score"/>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_Score" targetRef="Gateway_Score"/>
+    <bpmn:sequenceFlow id="Flow_4" name="예" sourceRef="Gateway_Score" targetRef="Gateway_Amount">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">score &gt;= 60</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_5" name="아니오" sourceRef="Gateway_Score" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_6" name="예" sourceRef="Gateway_Amount" targetRef="Task_Approve">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">amount &gt; 50000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_7" name="아니오" sourceRef="Gateway_Amount" targetRef="Gateway_Join"/>
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_Approve" targetRef="Gateway_Approved"/>
+    <bpmn:sequenceFlow id="Flow_9" name="예" sourceRef="Gateway_Approved" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">approved</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_10" name="아니오" sourceRef="Gateway_Approved" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Timer_Review" targetRef="End_Delayed"/>
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Task_Disburse" targetRef="End_Done"/>
+    <bpmn:sequenceFlow id="Flow_Join" sourceRef="Gateway_Join" targetRef="Task_Disburse"/>
+  </bpmn:process>
+</bpmn:definitions>

@@ -23,6 +23,18 @@ type CompileResult =
   | { ok: false; stage: string; diagnostics?: Diagnostic[]; problems?: (string | { message: string })[]; message?: string; sol?: string };
 
 const OVERLAY_TYPE = "bf-diag";
+/** 초안 자동 저장 (브라우저 로컬). 새로 만들기가 지운다. */
+const DRAFT_KEY = "blockflow.draft";
+/** 보드 → "이 다이어그램 편집" 이 한 번 넘겨주는 XML */
+const OPEN_KEY = "blockflow.open";
+
+function readStorage(store: Storage, key: string): string | null {
+  try {
+    return store.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
 export function Modeler() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,7 +51,19 @@ export function Modeler() {
   const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [deploying, setDeploying] = useState(false);
   const [deployError, setDeployError] = useState("");
+  const [restored, setRestored] = useState<"draft" | "open" | null>(null);
   const router = useRouter();
+
+  const saveDraft = useCallback(async () => {
+    const m = modelerRef.current;
+    if (!m) return;
+    try {
+      const { xml } = await m.saveXML({ format: false });
+      localStorage.setItem(DRAFT_KEY, xml);
+    } catch {
+      /* 저장 불가 환경 */
+    }
+  }, []);
 
   const applyOverlays = useCallback((diags: Diagnostic[]) => {
     const m = modelerRef.current;
@@ -85,26 +109,53 @@ export function Modeler() {
     modeler.on("commandStack.changed", () => {
       setVersion((v) => v + 1);
       scheduleLint();
+      void saveDraft();
     });
     modeler.on("import.done", () => {
       setVersion((v) => v + 1);
       void runLint();
     });
-    void modeler.importXML(INITIAL_XML).then(() => setReady(true));
+    // 우선순위: 보드에서 넘어온 XML → 저장된 초안 → 빈 다이어그램
+    const opened = readStorage(sessionStorage, OPEN_KEY);
+    const draft = readStorage(localStorage, DRAFT_KEY);
+    const initial = opened ?? draft ?? INITIAL_XML;
+    if (opened) {
+      try {
+        sessionStorage.removeItem(OPEN_KEY);
+      } catch {
+        /* */
+      }
+      setRestored("open");
+    } else if (draft) setRestored("draft");
+    void modeler.importXML(initial).then(() => {
+      setReady(true);
+      if (opened) {
+        modeler.get("canvas").zoom("fit-viewport", "auto");
+        void saveDraft();
+      }
+    });
     void fetch("/api/examples").then((r) => r.json()).then(setExamples).catch(() => setExamples([]));
     return () => {
       modeler.destroy();
       modelerRef.current = null;
     };
-  }, [runLint, scheduleLint]);
+  }, [runLint, scheduleLint, saveDraft]);
 
   const loadXml = async (xml: string) => {
     const m = modelerRef.current;
     if (!m) return;
     setResult(null);
+    setRestored(null);
     await m.importXML(xml);
     m.get("canvas").zoom("fit-viewport", "auto");
     setSelected(null);
+    if (xml === INITIAL_XML) {
+      try {
+        localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        /* */
+      }
+    } else void saveDraft();
   };
 
   const openExample = async (name: string) => {
@@ -193,6 +244,11 @@ export function Modeler() {
       <header className="flex items-center gap-2 px-3 py-2 bg-white border-b border-gray-200 text-sm">
         <span className="font-bold text-base mr-2">BlockFlow</span>
         <button className="btn" data-testid="new-diagram" onClick={() => void loadXml(INITIAL_XML)}>새로 만들기</button>
+        {restored && (
+          <span className="text-xs text-gray-500" data-testid="restored-notice">
+            {restored === "open" ? "보드에서 가져온 다이어그램이에요. 고쳐서 배포하면 새 버전이 돼요." : "이전 초안을 불러왔어요."}
+          </span>
+        )}
         <select className="btn" data-testid="example-select" defaultValue="" onChange={(e) => void openExample(e.target.value)}>
           <option value="">예시 열기…</option>
           {examples.map((ex) => <option key={ex.name} value={ex.name}>{ex.title}</option>)}

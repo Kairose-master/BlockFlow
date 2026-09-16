@@ -165,3 +165,19 @@ test("L1 타이머: 기한이 지나면 누구나 만료 처리할 수 있다 (�
   await expect(page.getByTestId("instance-status")).toContainText("중단", { timeout: 15_000 });
   await expect(page.getByTestId("task-done")).toContainText("만료 처리");
 });
+
+test("보드의 '다이어그램 편집' 은 배포된 XML 을 모델러에 연다", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("user-select")).toBeVisible();
+  await selectUser(page, "운영자 (소유자)");
+  await page.getByTestId("example-select").selectOption("supply-chain");
+  await expect(page.locator('[data-element-id="Task_Ship"]')).toBeVisible();
+  await page.getByTestId("compile").click();
+  await expect(page.getByTestId("compile-status")).toContainText("컴파일 성공", { timeout: 30_000 });
+  await page.getByTestId("deploy").click();
+  await expect(page).toHaveURL(/\/processes\/0x/, { timeout: 30_000 });
+  await page.getByTestId("edit-diagram").click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("restored-notice")).toContainText("보드에서 가져온");
+  await expect(page.locator('[data-element-id="Task_Ship"]')).toBeVisible();
+});

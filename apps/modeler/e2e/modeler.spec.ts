@@ -71,3 +71,18 @@ test("토큰 시뮬레이션 미리보기를 켜고 끌 수 있다", async ({ pa
   await page.getByTestId("simulate").click();
   await expect(page.locator(".djs-palette")).not.toHaveClass(/hidden/);
 });
+
+test("초안은 자동 저장되어 새로고침 후 복원되고, 새로 만들기가 지운다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("new-diagram").click();
+  await page.getByTestId("add-lane").click();
+  await expect(page.locator('.djs-element[data-element-id^="Lane_"]')).toHaveCount(2);
+  await page.waitForTimeout(400); // 자동 저장
+  await page.reload();
+  await expect(page.getByTestId("restored-notice")).toContainText("이전 초안");
+  await expect(page.locator('.djs-element[data-element-id^="Lane_"]')).toHaveCount(2);
+  await page.getByTestId("new-diagram").click();
+  await page.reload();
+  await expect(page.getByTestId("restored-notice")).toHaveCount(0);
+  await expect(page.locator('.djs-element[data-element-id^="Lane_"]')).toHaveCount(1);
+});

@@ -9,7 +9,7 @@
     {
         _require(id, {{inMask}}, {{taskConst}});
 {{#sets}}
-        vars[id].{{variable}} = {{variable}};
+        vars[id].{{variable}} = {{param}};
 {{/sets}}
         _fire(id, {{inMask}}, {{outMask}}, {{taskConst}});
 {{#payment}}
