@@ -94,8 +94,8 @@ export function describe(ir: IR, fn: string, inputs: Record<string, string>): st
     case "setPaused":
       return inputs.p === "true" ? `${ir.process.name} 일시정지` : `${ir.process.name} 재개`;
     default: {
-      const task = ir.nodes.find((n) => n.kind === "userTask" && n.name === fn);
-      if (task?.kind === "userTask") {
+      const task = ir.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.name === fn);
+      if (task?.kind === "userTask" || task?.kind === "serviceTask") {
         const vals = task.inputs.map((i) => `${i.label}=${inputs[i.variable] ?? "?"}`).join(", ");
         return `${id} [${task.label}] 완료${vals ? ` (${vals})` : ""}`;
       }

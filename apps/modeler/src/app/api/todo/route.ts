@@ -14,10 +14,11 @@ export function GET(req: Request) {
       for (const inst of rec.instances.values()) {
         if (inst.ended) continue;
         for (const t of e.indexer.enabledTasks(rec, inst)) {
-          if ((inst.roles[t.role] ?? "").toLowerCase() !== user.address.toLowerCase()) continue;
-          const task = p.ir.nodes.find((n) => n.kind === "userTask" && n.id === t.id);
-          const inputs = task?.kind === "userTask" ? task.inputs.map((i) => ({ ...i, type: p.ir.variables.find((v) => v.name === i.variable)?.type ?? "uint256" })) : [];
-          const roleLabel = p.ir.roles.find((r) => r.key === t.role)?.label ?? t.role;
+          const assignee = t.service ? e.oracle.address : (inst.roles[t.role] ?? "");
+          if (assignee.toLowerCase() !== user.address.toLowerCase()) continue;
+          const task = p.ir.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.id === t.id);
+          const inputs = task?.kind === "userTask" || task?.kind === "serviceTask" ? task.inputs.map((i) => ({ ...i, type: p.ir.variables.find((v) => v.name === i.variable)?.type ?? "uint256" })) : [];
+          const roleLabel = t.service ? "외부 서비스 (오라클)" : (p.ir.roles.find((r) => r.key === t.role)?.label ?? t.role);
           cards.push({ process: { address: p.address, name: p.ir.process.name, id: p.ir.process.id }, instance: inst.id, task: { ...t, roleLabel, inputs } });
         }
       }

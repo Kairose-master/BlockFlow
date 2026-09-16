@@ -88,6 +88,7 @@ L0 프로세스의 생성물은 바뀌지 않는다 (타이머가 없으면 관�
 | `bpmn:UserTask` | `bc:inputs`, `bc:taskId` | 완료 시 입력값 → 함수 인자 + form-js 필드; 이벤트/UI 용 정수 ID |
 | `bpmn:UserTask` (L1) | `bc:payToken`, `bc:payTo`, `bc:payAmountVar` | 결제 태스크: 완료 시 `IERC20(token).transferFrom(msg.sender, to, amount)` — **구현됨** |
 | `bpmn:BoundaryEvent` (timer, L1) | `bc:deadlineVar` 또는 `bc:deadlineSeconds` | `block.timestamp >= startedAt + deadline` 이면 누구나 `expire{Task}(id)`; 토큰이 만료 경로로 — **구현됨** |
+| `bpmn:ServiceTask` (L1) | `bc:fn`, `bc:tag`, `bc:inputs` (응답값) | 활성화 시 `ServiceRequested(id, taskId)` 를 한 번 내고, `oracle`(소유자가 `setOracle`) 만 응답 함수를 호출 — **구현됨** |
 | `bpmn:SequenceFlow` | `conditionExpression` (bc:expr) | 4.4 DSL |
 | `bpmn:ExclusiveGateway` | `default` | 기본 플로우 필수 (토큰 소실 방지) |
 

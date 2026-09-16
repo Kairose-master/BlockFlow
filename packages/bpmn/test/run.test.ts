@@ -23,6 +23,7 @@ function toArg(v: bigint | boolean | string): unknown {
 async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bigint[]> }> {
   const owner = account("owner", 0x01);
   const stranger = account("stranger", 0xbad);
+  const oracle = account("oracle", 0xacc0);
   const roleAccounts: Account[] = ir.roles.map((r, i) => account(r.key, 0xa1 + i));
   const roleAddresses = new Map(ir.roles.map((r, i) => [r.key, roleAccounts[i]!.hex.toLowerCase()]));
   const plans = planScenarios(ir, { roleAddresses });
@@ -30,8 +31,13 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
 
   const c = compile(generate(ir), ir.process.id);
   expect(c.diagnostics).toEqual([]);
-  const h = await Harness.create(c.abi, [owner, stranger, ...roleAccounts]);
+  const h = await Harness.create(c.abi, [owner, stranger, oracle, ...roleAccounts]);
+  const acc = (roleKey: string) => roleAccounts[ir.roles.findIndex((r) => r.key === roleKey)]!;
   const { address } = await h.deploy(owner, c.bytecode, [owner.hex]);
+  const hasService = ir.nodes.some((n) => n.kind === "serviceTask");
+  if (hasService) expect((await h.call(owner, address, "setOracle", [oracle.hex])).ok).toBe(true);
+  /** 태스크의 실행 계정: 사용자 태스크는 역할 담당자, 서비스 태스크는 오라클 */
+  const actorOf = (t: { kind: string; role?: string }) => (t.kind === "serviceTask" ? oracle : acc(t.role!));
 
   // L1 결제 태스크: 토큰 목을 참조 주소에 심고, 역할 계정마다 잔액과 approve 를 준다
   const tokens = [...new Set(ir.nodes.filter((n) => n.kind === "userTask" && n.payment).map((n) => (n.kind === "userTask" ? n.payment!.token : "")))];
@@ -49,7 +55,6 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
     const r = await h.callWith(tokenAbi!.abi, owner, tokenAddrs.get(token.toLowerCase())!, "balanceOf", [who]);
     return BigInt(r.returnData);
   };
-  const acc = (roleKey: string) => roleAccounts[ir.roles.findIndex((r) => r.key === roleKey)]!;
   const gas: Record<string, bigint[]> = {};
 
   for (const plan of plans) {
@@ -79,7 +84,7 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
       const args = s.task.inputs.map((i) => toArg(s.args[i.variable]!));
       // 권한 없는 실행
       const bad = await h.call(stranger, address, s.task.name, [id, ...args]);
-      expect(bad.error).toBe(`NotAuthorized(${id},${keccak256(stringToHex(s.task.role))})`);
+      expect(bad.error).toBe(s.task.kind === "serviceTask" ? "NotOracle()" : `NotAuthorized(${id},${keccak256(stringToHex(s.task.role))})`);
       // 활성화되지 않은 태스크
       if (s.disabledTask) {
         const d = s.disabledTask;
@@ -87,15 +92,15 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
           const t = ir.variables.find((v) => v.name === i.variable)!.type;
           return t === "bool" ? false : t === "bytes32" ? `0x${"0".repeat(64)}` : t === "address" ? `0x${"0".repeat(40)}` : 0n;
         });
-        const r = await h.call(acc(d.role), address, d.name, [id, ...zeros]);
+        const r = await h.call(actorOf(d), address, d.name, [id, ...zeros]);
         expect(r.error).toBe(`TaskNotEnabled(${id},${d.taskId})`);
       }
       // 결제 태스크: 받는 쪽 잔액이 금액만큼 늘어야 한다
-      const pay = s.task.payment;
+      const pay = s.task.kind === "userTask" ? s.task.payment : undefined;
       const payee = pay && "role" in pay.to ? acc(pay.to.role).hex : pay && "address" in pay.to ? pay.to.address : undefined;
       const before = pay && payee ? await balanceOf(pay.token, payee) : 0n;
       // 정상 실행
-      const r = await h.call(acc(s.task.role), address, s.task.name, [id, ...args]);
+      const r = await h.call(actorOf(s.task), address, s.task.name, [id, ...args]);
       expect(r.ok, `${plan.description}: ${s.task.name} → ${r.error}`).toBe(true);
       (gas[s.task.name] ??= []).push(r.gas);
       expect(r.events).toContain(`MarkingChanged(${id},${s.markingAfter})`);
@@ -112,7 +117,7 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
       const t = ir.variables.find((v) => v.name === i.variable)!.type;
       return t === "bool" ? false : t === "bytes32" ? `0x${"0".repeat(64)}` : t === "address" ? `0x${"0".repeat(40)}` : 0n;
     });
-    const after = await h.call(acc(first.role), address, first.name, [id, ...zeros]);
+    const after = await h.call(actorOf(first), address, first.name, [id, ...zeros]);
     expect(after.error).toBe(`AlreadyEnded(${id})`);
   }
   return { plans, gas };

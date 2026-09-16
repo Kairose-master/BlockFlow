@@ -29,7 +29,7 @@
 | V2 BFS | `packages/validator` (Phase 0 에서 선행) |
 | Mustache 생성기, solc 컴파일 | `packages/codegen` + solc-js 0.8.37 |
 | Foundry 테스트 생성 | `packages/codegen/src/{scenarios,foundry}.ts` — 불변식 4개 + 도달 경로마다 시나리오 1개 (음성 케이스 포함) |
-| 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 | `packages/bpmn/examples/*.bpmn` (+ L1 예시 2개: 결제, 타이머) → `contracts/src/*.sol`. `pnpm test` 가 JS EVM 에서 5개 전부 배포하고 모든 경로를 실행, CI 의 `forge test` 가 같은 시나리오와 불변식을 실행 |
+| 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 | `packages/bpmn/examples/*.bpmn` (+ L1 예시 3개: 결제, 타이머, 오라클 + 신용 심사 템플릿) → `contracts/src/*.sol`. `pnpm test` 가 JS EVM 에서 5개 전부 배포하고 모든 경로를 실행, CI 의 `forge test` 가 같은 시나리오와 불변식을 실행 |
 
 **Phase 2 "모델러" — 구현 완료 (`apps/modeler`, Next.js 16 + bpmn-js 18)**
 
@@ -75,7 +75,8 @@ BLOCKFLOW_RPC_URL=http://127.0.0.1:8545 pnpm modeler   # 실제 JSON-RPC 모드 
 | L1 타이머 경계 이벤트 (`bc:deadlineVar` 또는 `bc:deadlineSeconds`) | 완료. 태스크 활성화 시각(startedAt)+기한이 지나면 누구나 `expire{Task}(id)` 로 만료 경로 진행. 예시 `leave-request.bpmn`, 보드에 남은 시간·"만료 처리"·(로컬) 시간 건너뛰기 |
 | 신용서비스 프리셋 (앵커 논문 도메인) | 완료. `credit-review.bpmn` "신용 심사 (템플릿)" — 신청·평가(심사 기한 타이머)·고액 위원회 승인·약정 지급 |
 | 모델러 초안 자동 저장·복원, 보드 → "다이어그램 편집 (새 버전)" | 완료 |
-| L1 오라클·메시지·OR 게이트웨이, 버전 교체 투표 | 미구현 |
+| L1 서비스 태스크 (오라클 콜백, `bpmn:serviceTask`) | 완료. 토큰이 도착하면 `ServiceRequested(id, taskId)` 이벤트, 소유자가 `setOracle` 로 지정한 주소만 응답 함수 호출(`onlyOracle`). 예시 `fx-transfer.bpmn`, 콘솔의 데모 오라클 사용자 |
+| L1 메시지 이벤트·OR 게이트웨이, 버전 교체 투표 | 미구현 |
 
 남은 것: 임베디드 지갑 + 가스 스폰서(9장), Postgres/IPFS 저장소, 나머지 L1 요소. `docs/DESIGN.md` 로드맵 참고.
 

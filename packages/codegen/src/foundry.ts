@@ -9,7 +9,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Mustache from "mustache";
-import { type IR, maskOf, nodesOfKind, userTasks } from "@blockflow/ir";
+import { type IR, maskOf, nodesOfKind, taskNodes } from "@blockflow/ir";
 import { getAddress } from "viem";
 import { roleConst, screamingSnake, taskConst, uniqueName } from "./names";
 import { defaultRoleAddress, type Plan, planScenarios, solValue } from "./scenarios";
@@ -50,7 +50,7 @@ export interface FoundryTestOptions {
 export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): string {
   const name = ir.process.id;
   const varType = new Map(ir.variables.map((v) => [v.name, v.type]));
-  const tasks = userTasks(ir);
+  const tasks = taskNodes(ir);
   const usedTags = new Set<string>();
   const taskConstOf = new Map(tasks.map((t) => [t.id, taskConst(uniqueName(t.tag ?? screamingSnake(t.name), usedTags))]));
   const roleVar = (key: string) => "acc" + key.replace(/[^A-Za-z0-9_]/g, "");
@@ -58,11 +58,14 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
   const plans = opts.plans ?? planScenarios(ir);
   const hasTimer = tasks.some((t) => !!t.timer);
 
-  const tokens = [...new Set(tasks.filter((t) => t.payment).map((t) => getAddress(t.payment!.token)))];
+  const tokens = [...new Set(tasks.filter((t) => t.kind === "userTask" && t.payment).map((t) => getAddress((t as { payment: { token: string } }).payment.token)))];
+  const hasService = tasks.some((t) => t.kind === "serviceTask");
+  const actorOf = (t: { kind: string; role?: string }) => (t.kind === "serviceTask" ? "accOracle" : roleVar(t.role!));
   const ctx = {
     contractName: name,
     hasPayment: tokens.length > 0,
     hasTimer,
+    hasService,
     tokens: tokens.map((t) => ({ address: t })),
     importPath: opts.importPath ?? `../../src/${name}.sol`,
     roleCount: ir.roles.length,
@@ -73,6 +76,7 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
     allFlowsMask: hex(maskOf(ir, ir.flows.map((f) => f.id))),
     tasks: tasks.map((t) => ({
       name: t.name,
+      service: t.kind === "serviceTask",
       params: t.inputs.map((i) => ({ type: varType.get(i.variable), name: i.variable })),
     })),
     xorPairs: nodesOfKind(ir, "xorSplit").flatMap((x) => {
@@ -99,14 +103,16 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
             };
           }
           const args = s.task.inputs.map((i) => `, ${solValue(s.args[i.variable]!, varType.get(i.variable)!)}`).join("");
-          const actor = roleVar(s.task.role);
+          const actor = actorOf(s.task);
           const negatives: { actor: string; fn: string; args: string; error: string; errorArgs: string; warp?: number }[] = [
-            { actor: "stranger", fn: s.task.name, args, error: "NotAuthorized", errorArgs: `, id, ${roleConst(s.task.role)}` },
+            s.task.kind === "serviceTask"
+              ? { actor: "stranger", fn: s.task.name, args, error: "NotOracle", errorArgs: "" }
+              : { actor: "stranger", fn: s.task.name, args, error: "NotAuthorized", errorArgs: `, id, ${roleConst(s.task.role)}` },
           ];
           if (s.disabledTask) {
             const d = s.disabledTask;
             const dargs = d.inputs.map((i) => `, ${solValue(zeroOf(varType.get(i.variable)!), varType.get(i.variable)!)}`).join("");
-            negatives.push({ actor: roleVar(d.role), fn: d.name, args: dargs, error: "TaskNotEnabled", errorArgs: `, id, ${taskConstOf.get(d.id)}` });
+            negatives.push({ actor: actorOf(d), fn: d.name, args: dargs, error: "TaskNotEnabled", errorArgs: `, id, ${taskConstOf.get(d.id)}` });
           }
           return {
             actor,
@@ -120,7 +126,7 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
           };
         }),
         final: {
-          actor: roleVar(firstTask.role),
+          actor: actorOf(firstTask),
           fn: firstTask.name,
           args: firstTask.inputs.map((i) => `, ${solValue(zeroOf(varType.get(i.variable)!), varType.get(i.variable)!)}`).join(""),
         },

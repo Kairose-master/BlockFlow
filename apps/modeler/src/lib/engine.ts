@@ -38,7 +38,7 @@ export interface DeployedProcess {
   supersededBy?: Address;
 }
 
-const DEMO_LABELS = ["운영자 (소유자)", "김신청", "이팀장", "박재무", "최구매", "정공급", "한심사"];
+const DEMO_LABELS = ["운영자 (소유자)", "김신청", "이팀장", "박재무", "최구매", "정공급", "한심사", "오라클 (외부 서비스)"];
 const HARDHAT_KEYS = [
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
   "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
@@ -47,6 +47,7 @@ const HARDHAT_KEYS = [
   "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
   "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
   "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
+  "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
 ] as const;
 
 export class ApiError extends Error {
@@ -96,6 +97,11 @@ export class Engine {
     return this.users[0]!;
   }
 
+  /** 서비스 태스크에 응답하는 데모 오라클 계정 (마지막 사용자) */
+  get oracle(): DemoUser {
+    return this.users[this.users.length - 1]!;
+  }
+
   /** 체인 시각 (초). 로컬 모드는 어댑터 시계(오프셋 포함), rpc 모드는 서버 시각. */
   now(): number {
     return this.adapter instanceof LocalEvmAdapter ? this.adapter.now() : Math.floor(Date.now() / 1000);
@@ -135,6 +141,8 @@ export class Engine {
     this.processes.set(r.address, rec);
     this.indexer.track(r.address, ir, compiled.abi, owner.address, deployedBlock);
     if (previous) previous.supersededBy = r.address;
+    // L1 서비스 태스크가 있으면 데모 오라클을 응답자로 지정
+    if (ir.nodes.some((n) => n.kind === "serviceTask")) await this.adapter.send(r.address, compiled.abi, "setOracle", [this.oracle.address], owner.signer);
     this.save();
     return rec;
   }
@@ -210,8 +218,8 @@ export function handle(fn: () => Promise<Response>): Promise<Response> {
 
 /** IR 입력 타입에 맞춰 문자열 인자를 변환한다 (폼 → 컨트랙트). */
 export function coerceArgs(ir: IR, taskName: string, raw: Record<string, unknown>): unknown[] {
-  const task = ir.nodes.find((n) => n.kind === "userTask" && n.name === taskName);
-  if (task?.kind !== "userTask") throw new ApiError(400, "없는 할 일이에요");
+  const task = ir.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.name === taskName);
+  if (task?.kind !== "userTask" && task?.kind !== "serviceTask") throw new ApiError(400, "없는 할 일이에요");
   return task.inputs.map((inp) => {
     const type = ir.variables.find((v) => v.name === inp.variable)?.type;
     const v = raw[inp.variable];

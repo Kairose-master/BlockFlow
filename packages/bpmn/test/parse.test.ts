@@ -20,8 +20,8 @@ const read = (f: string) => readFileSync(join(EXAMPLES, f), "utf8");
 const files = readdirSync(EXAMPLES).filter((f) => f.endsWith(".bpmn")).sort();
 
 describe("BPMN → IR", () => {
-  it("손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망) + L1 예시 2개(결제, 타이머) + 신용 심사 템플릿", () => {
-    expect(files).toEqual(["credit-review.bpmn", "expense-approval.bpmn", "invoice-payment.bpmn", "leave-request.bpmn", "paper-review.bpmn", "purchase-order.bpmn", "supply-chain.bpmn", "travel-booking.bpmn"]);
+  it("손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망) + L1 예시 3개(결제, 타이머, 오라클) + 신용 심사 템플릿", () => {
+    expect(files).toEqual(["credit-review.bpmn", "expense-approval.bpmn", "fx-transfer.bpmn", "invoice-payment.bpmn", "leave-request.bpmn", "paper-review.bpmn", "purchase-order.bpmn", "supply-chain.bpmn", "travel-booking.bpmn"]);
   });
 
   it("Solidity 예약어(days 등)를 변수 이름으로 쓰면 R12", async () => {
@@ -143,11 +143,11 @@ describe("규칙 R1~R12 (비전문가용 메시지)", () => {
     expect(d).toContainEqual(expect.objectContaining({ rule: "R12", elementId: "Task_Pay", message: "이름을 붙여 주세요" }));
   });
 
-  it("L0 밖 요소 (서비스 태스크, 타이머)", async () => {
-    const xml = base.replace('<bpmn:userTask id="Task_Pay" name="지급" bc:taskId="3" bc:fn="pay">', '<bpmn:serviceTask id="Task_Pay" name="지급">').replace(/(<bpmn:userTask id="Task_Pay"[\s\S]*?)<\/bpmn:userTask>/, "$1</bpmn:userTask>");
-    const d = await lintBpmn(xml.replace(/<\/bpmn:userTask>(\s*<bpmn:userTask id="Task_Receipt")/, "</bpmn:serviceTask>$1"));
+  it("L0/L1 밖 요소 (스크립트 태스크)", async () => {
+    const xml = base.replace('<bpmn:userTask id="Task_Pay" name="지급" bc:taskId="3" bc:fn="pay">', '<bpmn:scriptTask id="Task_Pay" name="지급">');
+    const d = await lintBpmn(xml.replace(/<\/bpmn:userTask>(\s*<bpmn:userTask id="Task_Receipt")/, "</bpmn:scriptTask>$1"));
     expect(d.map((x) => x.rule)).toContain("L0");
-    expect(d.find((x) => x.rule === "L0")?.message).toMatch(/서비스 태스크/);
+    expect(d.find((x) => x.rule === "L0")?.message).toMatch(/스크립트 태스크/);
   });
 
   it("parseBpmn 은 ParseError 를 던진다", async () => {

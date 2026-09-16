@@ -10,8 +10,8 @@
 import type { ModdleElement } from "bpmn-moddle";
 import { createModdle } from "./parse";
 
-const NODE_W: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 100, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50, "bpmn:BoundaryEvent": 36 };
-const NODE_H: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 80, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50, "bpmn:BoundaryEvent": 36 };
+const NODE_W: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 100, "bpmn:ServiceTask": 100, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50, "bpmn:BoundaryEvent": 36 };
+const NODE_H: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 80, "bpmn:ServiceTask": 80, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50, "bpmn:BoundaryEvent": 36 };
 const COL = 170; // 층 간격
 const ROW = 110; // 슬롯 간격
 const LANE_PAD = 20;

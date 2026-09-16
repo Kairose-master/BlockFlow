@@ -26,6 +26,8 @@ export function PropertiesPanel({ modeler, element, version }: { modeler: Modele
       return <LaneForm modeler={modeler} lane={element} />;
     case "bpmn:UserTask":
       return <TaskForm modeler={modeler} task={element} process={process} />;
+    case "bpmn:ServiceTask":
+      return <TaskForm modeler={modeler} task={element} process={process} service />;
     case "bpmn:SequenceFlow":
       return <FlowForm modeler={modeler} flow={element} process={process} />;
     case "bpmn:EndEvent":
@@ -148,21 +150,22 @@ function LaneForm({ modeler, lane }: { modeler: Modeler; lane: Shape }) {
   );
 }
 
-function TaskForm({ modeler, task, process }: { modeler: Modeler; task: Shape; process: any }) {
+function TaskForm({ modeler, task, process, service = false }: { modeler: Modeler; task: Shape; process: any; service?: boolean }) {
   const bo = task.businessObject;
   const vars = getVariables(process);
   const inputs = getInputs(bo);
   const update = (next: { variable: string; label: string }[]) => setExtList(modeler, task, bo, "bc:Inputs", "bc:Input", next);
   return (
     <div>
-      <h3 className="font-semibold mb-2">할 일 (사용자 태스크)</h3>
+      <h3 className="font-semibold mb-2">{service ? "외부 서비스 (오라클)" : "할 일 (사용자 태스크)"}</h3>
+      {service && <p className="text-xs text-gray-500 mb-3">이 단계에 오면 컨트랙트가 요청 이벤트를 내고, 소유자가 지정한 외부 서비스(오라클)가 아래 값을 돌려줘요. 사람이 하는 일이 아니라 역할 칸이 필요 없어요.</p>}
       <Field label="이름" hint="예: 경비 신청">
         <input className={input} value={bo.name ?? ""} onChange={(e) => setProps(modeler, task, { name: e.target.value })} data-testid="task-name" />
       </Field>
       <Field label="영문 이름 (선택)" hint="컨트랙트 함수 이름. 비우면 자동으로 만들어요">
         <input className={input} value={bo.get("bc:fn") ?? ""} placeholder="submit" onChange={(e) => setProps(modeler, task, { "bc:fn": e.target.value || undefined })} data-testid="task-fn" />
       </Field>
-      <h4 className="text-xs font-semibold text-gray-600 mt-4 mb-1">완료할 때 입력받는 값</h4>
+      <h4 className="text-xs font-semibold text-gray-600 mt-4 mb-1">{service ? "외부 서비스가 돌려주는 값" : "완료할 때 입력받는 값"}</h4>
       {vars.length === 0 && <p className="text-[11px] text-gray-400 mb-2">먼저 프로세스에서 "값 추가" 를 해 주세요.</p>}
       <table className="w-full text-sm">
         <tbody>
@@ -184,7 +187,7 @@ function TaskForm({ modeler, task, process }: { modeler: Modeler; task: Shape; p
       </table>
       <button className="mt-2 text-sm text-blue-600 hover:underline disabled:text-gray-300" disabled={!vars.length}
         onClick={() => update([...inputs, { variable: vars[0]!.name, label: vars[0]!.name }])} data-testid="add-input">+ 입력 추가</button>
-      <PaymentFields modeler={modeler} task={task} vars={vars} />
+      {!service && <PaymentFields modeler={modeler} task={task} vars={vars} />}
     </div>
   );
 }

@@ -7,7 +7,7 @@
  * 진단(Diagnostic)은 비전문가용 한국어 메시지 + 요소 id 를 가진다. UI 는 id 로 요소에 빨간 배지를 붙인다.
  */
 import { BpmnModdle, type ModdleElement } from "bpmn-moddle";
-import type { EndEventNode, Flow, IR, Node, Payment, Role, TaskInput, Timer, UserTaskNode, VarType, Variable } from "@blockflow/ir";
+import type { EndEventNode, Flow, IR, Node, Payment, Role, ServiceTaskNode, TaskInput, Timer, UserTaskNode, VarType, Variable } from "@blockflow/ir";
 import { compileExpr, ExprError } from "@blockflow/codegen/expr";
 import * as names from "@blockflow/codegen/names";
 import BC from "../moddle/bc.json" with { type: "json" };
@@ -45,7 +45,7 @@ const VAR_TYPES = new Set<string>(["uint256", "int256", "bool", "address", "byte
 
 // ───────────── 그래프 (moddle 요소를 평탄화) ─────────────
 
-type Kind = "start" | "end" | "task" | "xor" | "and" | "timer";
+type Kind = "start" | "end" | "task" | "service" | "xor" | "and" | "timer";
 
 interface GNode {
   id: string;
@@ -111,12 +111,11 @@ function extValues(el: ModdleElement, type: string): ModdleElement[] {
 
 const SUPPORTED = new Set([
   "bpmn:StartEvent", "bpmn:EndEvent", "bpmn:UserTask", "bpmn:ExclusiveGateway", "bpmn:ParallelGateway",
-  "bpmn:SequenceFlow", "bpmn:LaneSet", "bpmn:Lane", "bpmn:BoundaryEvent",
+  "bpmn:SequenceFlow", "bpmn:LaneSet", "bpmn:Lane", "bpmn:BoundaryEvent", "bpmn:ServiceTask",
 ]);
 
 const UNSUPPORTED_MESSAGES: Record<string, string> = {
   "bpmn:Task": "일반 태스크 대신 사용자 태스크를 쓰세요",
-  "bpmn:ServiceTask": "서비스 태스크(오라클)는 L1 에서 지원돼요",
   "bpmn:ScriptTask": "스크립트 태스크는 아직 지원하지 않아요",
   "bpmn:SendTask": "메시지 태스크는 L1 에서 지원돼요",
   "bpmn:ReceiveTask": "메시지 태스크는 L1 에서 지원돼요",
@@ -222,8 +221,9 @@ function buildGraph(defs: ModdleElement, diags: Diagnostic[]): Graph | undefined
         nodes.set(id, n);
         break;
       }
+      case "bpmn:ServiceTask":
       case "bpmn:UserTask": {
-        const n: GNode = { ...base, kind: "task" };
+        const n: GNode = { ...base, kind: type === "bpmn:ServiceTask" ? "service" : "task" };
         const taskId = fe.get("bc:taskId");
         if (typeof taskId === "number") n.taskId = taskId;
         const fn = str(fe.get("bc:fn"));
@@ -303,7 +303,7 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
     if (!e.in.length) push("R2", "끝나는 지점으로 들어오는 화살표가 없어요", e.id);
   }
   // R3
-  for (const t of nodes.filter((n) => n.kind === "task")) {
+  for (const t of nodes.filter((n) => n.kind === "task" || n.kind === "service")) {
     if (t.in.length !== 1 || t.out.length !== 1) push("R3", "태스크에서 갈라지거나 모으려면 마름모(게이트웨이)를 쓰세요", t.id, `in ${t.in.length}, out ${t.out.length}`);
   }
   // R4
@@ -372,7 +372,7 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
       push("R9", missing ? `조건에 쓰인 [${missing[1]}]는 아직 정의되지 않았어요` : "조건식을 이해할 수 없어요", f.id, m);
     }
   }
-  for (const t of nodes.filter((n) => n.kind === "task")) {
+  for (const t of nodes.filter((n) => n.kind === "task" || n.kind === "service")) {
     for (const inp of t.inputs) {
       if (!g.variables.some((v) => v.name === inp.variable)) push("R9", `입력 [${inp.label}] 이 가리키는 변수 '${inp.variable}' 가 선언되지 않았어요`, t.id);
     }
@@ -427,10 +427,10 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
   // L1 타이머 경계 이벤트
   for (const t of nodes.filter((n) => n.kind === "timer")) {
     const host = t.attachedTo ? g.nodes.get(t.attachedTo) : undefined;
-    if (!host || host.kind !== "task") push("L1", "기한 이벤트는 할 일(사용자 태스크)에 붙여야 해요", t.id);
+    if (!host || (host.kind !== "task" && host.kind !== "service")) push("L1", "기한 이벤트는 할 일(사용자 태스크)이나 외부 서비스에 붙여야 해요", t.id);
     if (t.in.length) push("L1", "기한 이벤트로 들어오는 화살표는 없어야 해요", t.id);
     if (t.out.length !== 1) push("L1", "기한이 지나면 어디로 갈지 화살표 하나를 그리세요", t.id);
-    if (host?.kind === "task" && nodes.some((o) => o.kind === "timer" && o !== t && o.attachedTo === host.id)) push("L1", "할 일 하나에는 기한 이벤트 하나만 붙일 수 있어요", t.id);
+    if (host && nodes.some((o) => o.kind === "timer" && o !== t && o.attachedTo === host.id)) push("L1", "할 일 하나에는 기한 이벤트 하나만 붙일 수 있어요", t.id);
     if (!t.deadlineVar && !t.deadlineSeconds) push("L1", "기한을 정하세요 (값 또는 초)", t.id);
     if (t.deadlineVar) {
       const v = g.variables.find((x) => x.name === t.deadlineVar);
@@ -456,11 +456,12 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
   // R12
   if (!g.processName) push("R12", "프로세스 이름을 붙여 주세요", g.processId);
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(g.processId)) push("R12", "프로세스 id 는 영문자로 시작하는 영숫자여야 해요 (컨트랙트 이름이 돼요)", g.processId);
-  for (const t of nodes.filter((n) => n.kind === "task")) if (!t.name) push("R12", "이름을 붙여 주세요", t.id);
+  for (const t of nodes.filter((n) => n.kind === "task" || n.kind === "service")) if (!t.name) push("R12", "이름을 붙여 주세요", t.id);
+  for (const t of nodes.filter((n) => n.kind === "service" && n.pay)) push("L1", "외부 서비스(오라클) 태스크에는 결제를 붙일 수 없어요", t.id);
   for (const l of g.lanes) if (!l.name) push("R12", "역할 이름을 붙여 주세요", l.id);
   // taskId 중복
   const seenTaskIds = new Map<number, string>();
-  for (const t of nodes.filter((n) => n.kind === "task" && n.taskId !== undefined)) {
+  for (const t of nodes.filter((n) => (n.kind === "task" || n.kind === "service") && n.taskId !== undefined)) {
     const other = seenTaskIds.get(t.taskId!);
     if (other) push("R12", "태스크 번호가 겹쳐요", t.id, `taskId ${t.taskId} = ${other}`);
     seenTaskIds.set(t.taskId!, t.id);
@@ -495,6 +496,7 @@ function toIR(g: Graph): IR {
         irId.set(n.id, "start");
         break;
       case "task":
+      case "service":
         irId.set(n.id, `T${++t}`);
         break;
       case "xor":
@@ -555,7 +557,7 @@ function toIR(g: Graph): IR {
   const usedFn = new Set<string>();
   const nodes: Node[] = [];
   let taskSeq = 0;
-  const explicitIds = new Set(docNodes.filter((n) => n.kind === "task" && n.taskId !== undefined).map((n) => n.taskId!));
+  const explicitIds = new Set(docNodes.filter((n) => (n.kind === "task" || n.kind === "service") && n.taskId !== undefined).map((n) => n.taskId!));
   const nextFreeTaskId = () => {
     do taskSeq++;
     while (explicitIds.has(taskSeq));
@@ -574,6 +576,20 @@ function toIR(g: Graph): IR {
         const end: EndEventNode = { id, kind: "endEvent", bpmnId: n.id, in: ins, outcome: n.outcome ?? "completed" };
         if (n.name) end.label = n.name;
         nodes.push(end);
+        break;
+      }
+      case "service": {
+        const fnBase = n.fn ?? names.toIdentifier(n.name, id.toLowerCase());
+        const svc: ServiceTaskNode = {
+          id, kind: "serviceTask", bpmnId: n.id,
+          taskId: n.taskId ?? nextFreeTaskId(),
+          name: names.uniqueName(names.isReserved(fnBase) ? fnBase + "_" : fnBase, usedFn),
+          label: n.name, inputs: n.inputs, in: ins, out: outs,
+        };
+        if (n.tag) svc.tag = n.tag;
+        const timer = docNodes.find((o) => o.kind === "timer" && o.attachedTo === n.id);
+        if (timer) svc.timer = { deadline: timer.deadlineVar ? { var: timer.deadlineVar } : { seconds: timer.deadlineSeconds ?? 0 }, out: flowIrId.get(timer.out[0]!)!, bpmnId: timer.id };
+        nodes.push(svc);
         break;
       }
       case "task": {
@@ -614,7 +630,7 @@ function toIR(g: Graph): IR {
   }
   void e;
 
-  const silent = nodes.filter((n) => n.kind !== "startEvent" && n.kind !== "userTask").map((n) => n.id);
+  const silent = nodes.filter((n) => n.kind !== "startEvent" && n.kind !== "userTask" && n.kind !== "serviceTask").map((n) => n.id);
   return {
     version: "bf-ir/0.1",
     process: { id: g.processId, name: g.processName, bpmnId: g.processId },

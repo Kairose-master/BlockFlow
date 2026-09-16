@@ -84,12 +84,13 @@ export function checkStructure(ir: IR): string[] {
   const fnNames = new Set<string>();
   for (const n of ir.nodes) {
     switch (n.kind) {
+      case "serviceTask":
       case "userTask":
         if (taskIds.has(n.taskId)) problems.push(`taskId 중복: ${n.taskId} (${n.id})`);
         taskIds.add(n.taskId);
         if (fnNames.has(n.name)) problems.push(`태스크 함수명 중복: ${n.name} (${n.id})`);
         fnNames.add(n.name);
-        if (!roleKeys.has(n.role)) problems.push(`태스크 ${n.id} 의 역할이 선언되지 않음: ${n.role} (R7)`);
+        if (n.kind === "userTask" && !roleKeys.has(n.role)) problems.push(`태스크 ${n.id} 의 역할이 선언되지 않음: ${n.role} (R7)`);
         if (n.out.length !== 1) problems.push(`태스크 ${n.id} 는 나가는 플로우가 1개여야 함 (R3, 타이머 만료 경로는 timer 에 둔다)`);
         if (n.in.length < 1) problems.push(`태스크 ${n.id} 는 들어오는 플로우가 필요함 (R3)`);
         for (const inp of n.inputs) {
@@ -105,7 +106,7 @@ export function checkStructure(ir: IR): string[] {
             else if (v.type !== "uint256") problems.push(`타이머 태스크 ${n.id} 의 기한 변수 ${v.name} 은 uint256(초) 이어야 함`);
           }
         }
-        if (n.payment) {
+        if (n.kind === "userTask" && n.payment) {
           const amount = ir.variables.find((v) => v.name === n.payment!.amountVar);
           if (!amount) problems.push(`결제 태스크 ${n.id} 의 금액 변수가 선언되지 않음: ${n.payment.amountVar}`);
           else if (amount.type !== "uint256") problems.push(`결제 태스크 ${n.id} 의 금액 변수 ${amount.name} 은 uint256 이어야 함`);
@@ -147,7 +148,7 @@ export function checkStructure(ir: IR): string[] {
   for (const id of ir.silent) {
     const n = ir.nodes.find((x) => x.id === id);
     if (!n) problems.push(`silent 에 없는 노드: ${id}`);
-    else if (n.kind === "userTask" || n.kind === "startEvent") problems.push(`silent 에 ${n.kind} 는 올 수 없음: ${id}`);
+    else if (n.kind === "userTask" || n.kind === "serviceTask" || n.kind === "startEvent") problems.push(`silent 에 ${n.kind} 는 올 수 없음: ${id}`);
   }
   for (const n of ir.nodes) {
     if ((n.kind === "xorSplit" || n.kind === "andSplit" || n.kind === "andJoin" || n.kind === "endEvent") && !ir.silent.includes(n.id)) {

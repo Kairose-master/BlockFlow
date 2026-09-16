@@ -181,3 +181,53 @@ test("보드의 '다이어그램 편집' 은 배포된 XML 을 모델러에 연�
   await expect(page.getByTestId("restored-notice")).toContainText("보드에서 가져온");
   await expect(page.locator('[data-element-id="Task_Ship"]')).toBeVisible();
 });
+
+test("L1 오라클: 외부 서비스 단계는 지정된 오라클 사용자만 응답할 수 있다", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await expect(page.getByTestId("user-select")).toBeVisible();
+  await selectUser(page, "운영자 (소유자)");
+  await page.getByTestId("example-select").selectOption("fx-transfer");
+  await expect(page.locator('[data-element-id="Service_Rate"]')).toBeVisible();
+  await page.getByTestId("compile").click();
+  await expect(page.getByTestId("compile-status")).toContainText("컴파일 성공", { timeout: 30_000 });
+  await page.getByTestId("deploy").click();
+  await expect(page).toHaveURL(/\/processes\/0x/, { timeout: 30_000 });
+  const boardUrl = page.url();
+  await page.getByTestId("new-instance").click();
+  await page.getByTestId("role-Requester").selectOption({ label: "김신청" });
+  await page.getByTestId("role-Finance").selectOption({ label: "박재무" });
+  await page.getByTestId("create-confirm").click();
+  await expect(page.getByTestId("instance-1")).toBeVisible();
+
+  await selectUser(page, "김신청");
+  await page.goto("/todo");
+  await expect(page.getByTestId("todo-card")).toHaveCount(1);
+  await page.getByTestId("field-amountUsd").fill("100");
+  await page.getByTestId("complete-request").click();
+  await expect(page.getByTestId("task-done")).toBeVisible();
+
+  // 보드: 외부 서비스 응답 대기. 재무에게는 아직 할 일이 없다
+  await page.goto(boardUrl);
+  await expect(page.getByTestId("instance-status")).toContainText("외부 서비스 응답 대기", { timeout: 15_000 });
+  await selectUser(page, "박재무");
+  await page.goto("/todo");
+  await expect(page.getByTestId("no-todo")).toBeVisible();
+
+  // 오라클이 환율을 돌려준다
+  await selectUser(page, "오라클 (외부 서비스)");
+  await page.goto("/todo");
+  await expect(page.getByTestId("todo-card")).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.getByTestId("todo-card")).toContainText("외부 서비스 (오라클)");
+  await page.getByTestId("field-rateKrw").fill("1350");
+  await page.getByTestId("complete-fetchRate").click();
+  await expect(page.getByTestId("task-done")).toBeVisible();
+
+  // 재무가 송금 실행 → 완료
+  await selectUser(page, "박재무");
+  await page.goto("/todo");
+  await expect(page.getByTestId("todo-card")).toHaveCount(1, { timeout: 15_000 });
+  await page.getByTestId("field-txRef").fill("SWIFT-001");
+  await page.getByTestId("complete-send_").click();
+  await expect(page.getByTestId("task-done")).toContainText("정상 종료");
+});

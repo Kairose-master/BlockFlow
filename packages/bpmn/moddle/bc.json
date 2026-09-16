@@ -95,7 +95,8 @@
     {
       "name": "TaskExt",
       "extends": [
-        "bpmn:UserTask"
+        "bpmn:UserTask",
+        "bpmn:ServiceTask"
       ],
       "properties": [
         {

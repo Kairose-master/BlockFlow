@@ -119,8 +119,9 @@ export class Indexer {
       case "TaskCompleted": {
         if (id === undefined) break;
         const taskId = Number(a.taskId);
-        const task = ir.nodes.find((n) => n.kind === "userTask" && n.taskId === taskId);
-        push({ instance: id, kind: "taskCompleted", text: `#${id} [${task?.kind === "userTask" ? task.label : `태스크 ${taskId}`}] 완료`, actor: a.actor as Address, taskId });
+        const task = ir.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.taskId === taskId);
+        const label = task && (task.kind === "userTask" || task.kind === "serviceTask") ? task.label : `태스크 ${taskId}`;
+        push({ instance: id, kind: "taskCompleted", text: `#${id} [${label}] ${task?.kind === "serviceTask" ? "응답" : "완료"}`, actor: a.actor as Address, taskId });
         break;
       }
       case "MarkingChanged": {
@@ -136,6 +137,13 @@ export class Indexer {
         push({ instance: id, kind: "ended", text: `#${id} ${a.completed ? "정상 완료" : "중단(반려)"}` });
         break;
       }
+      case "ServiceRequested": {
+        if (id === undefined) break;
+        const taskId = Number(a.taskId);
+        const task = ir.nodes.find((n) => n.kind === "serviceTask" && n.taskId === taskId);
+        push({ instance: id, kind: "taskCompleted", text: `#${id} [${task?.kind === "serviceTask" ? task.label : `태스크 ${taskId}`}] 외부 서비스에 요청`, taskId });
+        break;
+      }
       case "Paused": {
         rec.paused = Boolean(a.paused);
         push({ instance: 0n, kind: "paused", text: rec.paused ? "프로세스 일시정지" : "프로세스 재개" });
@@ -148,15 +156,20 @@ export class Indexer {
     for (const l of this.listeners) l(rec.address);
   }
 
-  /** 인스턴스별 현재 활성 태스크 (marking 으로 계산, 컨트랙트의 enabledTasks 와 같다). */
-  enabledTasks(rec: ProcessRecord, inst: InstanceState): { taskId: number; id: string; name: string; label: string; role: string }[] {
+  /** 서비스 태스크(오라클)의 가상 역할 키 */
+  static readonly ORACLE_ROLE = "__oracle";
+
+  /** 인스턴스별 현재 활성 태스크 (marking 으로 계산, 컨트랙트의 enabledTasks 와 같다). 서비스 태스크는 role = "__oracle". */
+  enabledTasks(rec: ProcessRecord, inst: InstanceState): { taskId: number; id: string; name: string; label: string; role: string; service: boolean }[] {
     if (inst.ended) return [];
     const bit = (fid: string) => 1n << BigInt(rec.ir.flows.find((f) => f.id === fid)!.bit);
-    return rec.ir.nodes
-      .filter((n) => n.kind === "userTask")
-      .filter((n) => n.kind === "userTask" && n.in.some((fid) => (inst.marking & bit(fid)) !== 0n))
-      .map((n) => (n.kind === "userTask" ? { taskId: n.taskId, id: n.id, name: n.name, label: n.label, role: n.role } : null!))
-      .filter(Boolean);
+    const out: { taskId: number; id: string; name: string; label: string; role: string; service: boolean }[] = [];
+    for (const n of rec.ir.nodes) {
+      if (n.kind !== "userTask" && n.kind !== "serviceTask") continue;
+      if (!n.in.some((fid) => (inst.marking & bit(fid)) !== 0n)) continue;
+      out.push({ taskId: n.taskId, id: n.id, name: n.name, label: n.label, role: n.kind === "userTask" ? n.role : Indexer.ORACLE_ROLE, service: n.kind === "serviceTask" });
+    }
+    return out;
   }
 
   /** 어댑터 read() 로 인덱서 상태를 검증/보정한다 (인덱서 다운 시 폴백과 같은 경로). */

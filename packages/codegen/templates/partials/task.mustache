@@ -2,7 +2,12 @@
     function {{name}}({{params}})
         external
         whenNotPaused
+{{#roleConst}}
         onlyRole(id, {{roleConst}})
+{{/roleConst}}
+{{#service}}
+        onlyOracle
+{{/service}}
 {{#payment}}
         nonReentrant
 {{/payment}}

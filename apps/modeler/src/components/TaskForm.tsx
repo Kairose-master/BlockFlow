@@ -13,8 +13,8 @@ interface Task {
 }
 
 export function TaskForm({ address, ir, instance, task, onDone }: { address: string; ir: IR; instance: string; task: Task; onDone: (message: string) => void }) {
-  const node = ir.nodes.find((n) => n.kind === "userTask" && n.id === task.id);
-  const inputs = node?.kind === "userTask" ? node.inputs.map((i) => ({ ...i, type: ir.variables.find((v) => v.name === i.variable)?.type ?? "uint256" })) : [];
+  const node = ir.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.id === task.id);
+  const inputs = node?.kind === "userTask" || node?.kind === "serviceTask" ? node.inputs.map((i) => ({ ...i, type: ir.variables.find((v) => v.name === i.variable)?.type ?? "uint256" })) : [];
   // 화면에 보이는 기본값(예/아니오 → 예)이 그대로 전송되도록 초기 상태에 넣는다.
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(inputs.filter((i) => i.type === "bool").map((i) => [i.variable, "true"])));
   const [busy, setBusy] = useState(false);

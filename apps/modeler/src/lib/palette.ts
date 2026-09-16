@@ -32,6 +32,7 @@ class BlockFlowPaletteProvider {
       "create.start-event": createAction("bpmn:StartEvent", "event", "bpmn-icon-start-event-none", "시작"),
       "create.end-event": createAction("bpmn:EndEvent", "event", "bpmn-icon-end-event-none", "끝"),
       "create.user-task": createAction("bpmn:UserTask", "activity", "bpmn-icon-user-task", "할 일 (사용자 태스크)"),
+      "create.service-task": createAction("bpmn:ServiceTask", "activity", "bpmn-icon-service-task", "외부 서비스 (오라클이 값을 돌려줌)"),
       "create.exclusive-gateway": createAction("bpmn:ExclusiveGateway", "gateway", "bpmn-icon-gateway-xor", "조건에 따라 갈라짐 (XOR)"),
       "create.parallel-gateway": createAction("bpmn:ParallelGateway", "gateway", "bpmn-icon-gateway-parallel", "동시에 진행 (AND)"),
       "create.timer-boundary": {
@@ -45,7 +46,7 @@ class BlockFlowPaletteProvider {
   }
 }
 
-export const ALLOWED_PALETTE_ENTRIES = 9;
+export const ALLOWED_PALETTE_ENTRIES = 10;
 
 const paletteModule = {
   __init__: ["paletteProvider"],

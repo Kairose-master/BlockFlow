@@ -19,7 +19,7 @@ interface Instance {
   ended: boolean;
   outcome?: string;
   roles: Record<string, string>;
-  enabled: { taskId: number; id: string; name: string; label: string; role: string }[];
+  enabled: { taskId: number; id: string; name: string; label: string; role: string; service?: boolean }[];
   timers?: Record<string, { expiresAt: number }>;
 }
 
@@ -33,6 +33,7 @@ interface BoardData {
   supersededBy: string | null;
   now: number;
   mode: "local" | "rpc";
+  oracle?: string;
   instances: Instance[];
   timeline: { block: string; seq: number; instance: string; kind: string; text: string; actor?: string }[];
 }
@@ -161,7 +162,8 @@ export function Board({ address }: { address: string }) {
   if (!data) return <div className="p-6 text-sm text-gray-500">불러오는 중…</div>;
   const inst = data.instances.find((i) => i.id === selected);
   const label = (addr: string) => users.find((u) => u.address.toLowerCase() === addr.toLowerCase())?.label ?? short(addr);
-  const myTasks = inst && !data.paused ? inst.enabled.filter((t) => (inst.roles[t.role] ?? "").toLowerCase() === user.toLowerCase()) : [];
+  const assignee = (t: { role: string; service?: boolean }, i: Instance) => (t.service ? (data.oracle ?? "") : (i.roles[t.role] ?? ""));
+  const myTasks = inst && !data.paused ? inst.enabled.filter((t) => assignee(t, inst).toLowerCase() === user.toLowerCase()) : [];
 
   return (
     <div className="h-full flex min-h-0">
@@ -196,7 +198,7 @@ export function Board({ address }: { address: string }) {
               <span className={inst.outcome === "completed" ? "text-green-700" : "text-amber-700"}>{inst.outcome === "completed" ? "정상 완료" : "중단(반려)"}</span>
             ) : (
               <span>
-                지금 할 수 있는 일: {inst.enabled.length ? inst.enabled.map((t) => `[${t.label}] ← ${label(inst.roles[t.role] ?? "")}`).join(", ") : "없음"}
+                지금 할 수 있는 일: {inst.enabled.length ? inst.enabled.map((t) => `[${t.label}] ← ${t.service ? "외부 서비스 응답 대기" : label(inst.roles[t.role] ?? "")}`).join(", ") : "없음"}
               </span>
             )}
           </div>

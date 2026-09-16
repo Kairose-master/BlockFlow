@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  해외 송금 (L1 서비스 태스크 = 오라클 콜백). 레인: 요청자 / 재무. 외부 서비스(환율)는 레인 밖.
+  [시작] → (요청자) 송금 요청{amountUsd} → [외부 서비스] 환율 조회{rateKrw} → ◇ rateKrw > 0 ? ─yes→ (재무) 송금 실행{txRef} → [종료:완료]
+                                                                              default → [종료:환율 오류]
+  서비스 태스크: 토큰이 도착하면 ServiceRequested(id, taskId) 이벤트가 나고, 소유자가 setOracle 로 지정한 주소만 응답(fetchRate)할 수 있다.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_FxTransfer" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="FxTransfer" name="해외 송금" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="amountUsd" type="uint256"/>
+        <bc:variable name="rateKrw" type="uint256"/>
+        <bc:variable name="txRef" type="bytes32"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Requester" name="요청자" bc:roleKey="Requester">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Service_Rate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Rate</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Error</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finance" name="재무" bc:roleKey="Finance">
+        <bpmn:flowNodeRef>Task_Send</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Done</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Request" name="송금 요청" bc:fn="request">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="amountUsd" label="금액 (USD)"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Service_Rate" name="환율 조회" bc:fn="fetchRate" bc:tag="RATE">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="rateKrw" label="환율 (KRW/USD)"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_Rate" name="환율 정상?" default="Flow_5">
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Send" name="송금 실행" bc:fn="send_" bc:tag="SEND">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="txRef" label="송금 증빙"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Done" name="완료"><bpmn:incoming>Flow_6</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Error" name="환율 오류" bc:outcome="error"><bpmn:incoming>Flow_5</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Request"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Request" targetRef="Service_Rate"/>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Service_Rate" targetRef="Gateway_Rate"/>
+    <bpmn:sequenceFlow id="Flow_4" name="예" sourceRef="Gateway_Rate" targetRef="Task_Send">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">rateKrw &gt; 0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_5" name="아니오" sourceRef="Gateway_Rate" targetRef="End_Error"/>
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_Send" targetRef="End_Done"/>
+  </bpmn:process>
+</bpmn:definitions>

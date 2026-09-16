@@ -8,12 +8,13 @@ import {
   type EndEventNode,
   type IR,
   type Node,
+  type ServiceTaskNode,
   type UserTaskNode,
   flowById,
   nodeById,
   nodesOfKind,
   outFlows,
-  userTasks,
+  taskNodes,
 } from "@blockflow/ir";
 import { compileExpr } from "./expr";
 import { getAddress } from "viem";
@@ -27,6 +28,9 @@ export interface TemplateContext {
   /** L1 타이머가 하나라도 있으면 startedAt·_stamp·expire 함수·TaskExpired/NotExpired 를 낸다 */
   hasTimer: boolean;
   timers: TimerCtx[];
+  /** L1 서비스 태스크(오라클)가 있으면 oracle·setOracle·onlyOracle·ServiceRequested·_notify 를 낸다 */
+  hasService: boolean;
+  services: { inMask: string; taskConst: string }[];
   roles: { line: string }[];
   roleCount: number;
   roleOrder: string;
@@ -56,7 +60,10 @@ export interface TaskCtx {
   doc: string;
   name: string;
   params: string;
-  roleConst: string;
+  /** 사용자 태스크: onlyRole(id, ROLE_X). 서비스 태스크는 없음 */
+  roleConst?: string;
+  /** 서비스 태스크: onlyOracle */
+  service?: boolean;
   inMask: string;
   outMask: string;
   taskConst: string;
@@ -81,7 +88,7 @@ function mask(ids: readonly string[]): string {
   return ids.length === 1 ? ids[0]! : `(${ids.join(" | ")})`;
 }
 
-function taskTag(t: UserTaskNode): string {
+function taskTag(t: UserTaskNode | ServiceTaskNode): string {
   return t.tag ?? screamingSnake(t.name);
 }
 
@@ -105,6 +112,7 @@ function flowToLabel(ir: IR, flowId: string, described: Set<string>): string {
   described.add(to.id);
   switch (to.kind) {
     case "userTask":
+    case "serviceTask":
       return `${to.id} ${to.name}`;
     case "xorSplit":
       return first ? `${to.id} (XOR: ${to.branches.map((b) => b.cond.replace(/\s+/g, "")).join("|")}?)` : to.id;
@@ -142,7 +150,7 @@ function stepComment(n: Node): string {
 
 export function buildContext(ir: IR): TemplateContext {
   const varType = new Map(ir.variables.map((v) => [v.name, v.type]));
-  const tasks = userTasks(ir);
+  const tasks = taskNodes(ir);
 
   // ── 역할 상수 (정렬) ──
   const roleNames = ir.roles.map((r) => roleConst(r.key));
@@ -185,18 +193,20 @@ export function buildContext(ir: IR): TemplateContext {
     const paramName = (v: string) => (v === fnName ? `${v}_` : v);
     const params = ["uint256 id", ...t.inputs.map((inp) => `${varType.get(inp.variable)} ${paramName(inp.variable)}`)].join(", ");
     const sets = t.inputs.length ? `  sets: ${t.inputs.map((x) => x.variable).join(", ")}` : "";
-    const pays = t.payment ? `  pays: ${t.payment.amountVar} → ${"role" in t.payment.to ? t.payment.to.role : t.payment.to.address}` : "";
+    const pays = t.kind === "userTask" && t.payment ? `  pays: ${t.payment.amountVar} → ${"role" in t.payment.to ? t.payment.to.role : t.payment.to.address}` : "";
+    const who = t.kind === "userTask" ? t.role : "oracle";
     const ctx: TaskCtx = {
-      doc: `/// T${t.taskId}: ${t.label} [${t.role}]  in: ${t.in.join(" | ")}  out: ${t.out.join(" | ")}${sets}${pays}`,
+      doc: `/// T${t.taskId}: ${t.label} [${who}]  in: ${t.in.join(" | ")}  out: ${t.out.join(" | ")}${sets}${pays}`,
       name: fnName,
       params,
-      roleConst: roleConst(t.role),
       inMask: mask(t.in),
       outMask: mask(t.out),
       taskConst: taskConstNames[i]!,
       sets: t.inputs.map((x) => ({ variable: x.variable, param: paramName(x.variable) })),
     };
-    if (t.payment) {
+    if (t.kind === "userTask") ctx.roleConst = roleConst(t.role);
+    else ctx.service = true;
+    if (t.kind === "userTask" && t.payment) {
       ctx.payment = {
         token: getAddress(t.payment.token), // 주소 리터럴은 체크섬 형식이어야 컴파일된다
         to: "role" in t.payment.to ? `roleOf[id][${roleConst(t.payment.to.role)}]` : getAddress(t.payment.to.address),
@@ -255,9 +265,11 @@ export function buildContext(ir: IR): TemplateContext {
   return {
     contractName: ir.process.id,
     processName: ir.process.name,
-    hasPayment: tasks.some((t) => !!t.payment),
+    hasPayment: tasks.some((t) => t.kind === "userTask" && !!t.payment),
     hasTimer: timers.length > 0,
     timers,
+    hasService: tasks.some((t) => t.kind === "serviceTask"),
+    services: tasks.map((t, i) => ({ t, i })).filter(({ t }) => t.kind === "serviceTask").map(({ t, i }) => ({ inMask: mask(t.in), taskConst: taskConstNames[i]! })),
     roles,
     roleCount: ir.roles.length,
     roleOrder: ir.roles.map((r) => r.key).join(", "),

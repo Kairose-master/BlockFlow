@@ -16,8 +16,8 @@ export function GET(_req: Request, ctx: { params: Promise<{ address: string }> }
           // L1 타이머: 활성 태스크에 기한이 있으면 startedAt + 기한 을 읽어 만료 시각을 계산
           const timers: Record<string, { expiresAt: number }> = {};
           for (const t of enabled) {
-            const node = p.ir.nodes.find((n) => n.kind === "userTask" && n.id === t.id);
-            if (node?.kind !== "userTask" || !node.timer) continue;
+            const node = p.ir.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.id === t.id);
+            if ((node?.kind !== "userTask" && node?.kind !== "serviceTask") || !node.timer) continue;
             const startedAt = Number((await e.adapter.read(p.address, p.abi, "startedAt", [i.id, t.taskId])) as bigint);
             const d = node.timer.deadline;
             const deadline = "seconds" in d ? d.seconds : Number(((await e.adapter.read(p.address, p.abi, "vars", [i.id])) as unknown[])[p.ir.variables.findIndex((v) => v.name === d.var)] as bigint);
@@ -28,7 +28,7 @@ export function GET(_req: Request, ctx: { params: Promise<{ address: string }> }
       : [];
     return json({
       address: p.address, xml: p.xml, ir: p.ir, owner: p.owner, paused: rec?.paused ?? false, mode: e.mode,
-      version: p.version, supersededBy: p.supersededBy ?? null, now,
+      version: p.version, supersededBy: p.supersededBy ?? null, now, oracle: e.oracle.address,
       instances, timeline: rec?.timeline.slice().reverse() ?? [],
     });
   });

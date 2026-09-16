@@ -56,6 +56,7 @@ function transitions(ir: IR): Transition[] {
     switch (n.kind) {
       case "startEvent":
         break;
+      case "serviceTask":
       case "userTask":
         // 컨트랙트는 in 마스크 전체를 소비하지만 1-safe 에서는 하나만 있으므로 동일.
         for (const f of n.in) add(n, [f], false, n.out, false, `${n.id}(${f})`);

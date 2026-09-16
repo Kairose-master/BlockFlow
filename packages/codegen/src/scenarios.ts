@@ -7,11 +7,13 @@
  *
  * Plan 은 Foundry 테스트(foundry.ts)와 JS EVM 테스트가 같이 쓴다.
  */
-import { type IR, type UserTaskNode, maskOf, nodesOfKind, userTasks } from "@blockflow/ir";
+import { type IR, type ServiceTaskNode, type UserTaskNode, maskOf, nodesOfKind, taskNodes } from "@blockflow/ir";
+
+export type TaskLike = UserTaskNode | ServiceTaskNode;
 import { type Ast, type Value, evalExpr, literalsFor, parseExpr } from "./expr";
 
 export interface PlanStep {
-  task: UserTaskNode;
+  task: TaskLike;
   /** "task" = 담당자가 완료, "expire" = 기한이 지나 누구나 만료 처리 */
   kind: "task" | "expire";
   /** 이 단계의 블록 시각 (초). 실행기는 이 시각으로 warp 한 뒤 트랜잭션을 보낸다 */
@@ -25,7 +27,7 @@ export interface PlanStep {
   /** endedAfter 일 때 마지막으로 발화한 종료 이벤트의 outcome */
   outcomeAfter?: string;
   /** 이 단계 직전에 활성화되지 않은 태스크 하나 (TaskNotEnabled 음성 테스트용) */
-  disabledTask?: UserTaskNode;
+  disabledTask?: TaskLike;
 }
 
 export interface Plan {
@@ -155,7 +157,7 @@ export function planScenarios(ir: IR, opts: PlanOptions = {}): Plan[] {
   const roleAddrs = ir.roles.map((r) => roles.get(r.key)!.toLowerCase());
   const sim = buildSim(ir);
   const cands = candidates(ir, roleAddrs);
-  const tasks = userTasks(ir).map((t) => ({ t, inMask: maskOf(ir, t.in), outMask: maskOf(ir, t.out), timerMask: t.timer ? maskOf(ir, [t.timer.out]) : 0n }));
+  const tasks = taskNodes(ir).map((t) => ({ t, inMask: maskOf(ir, t.in), outMask: maskOf(ir, t.out), timerMask: t.timer ? maskOf(ir, [t.timer.out]) : 0n }));
   const T0 = 1_700_000_000; // 시뮬레이션 시작 시각 (초)
   const start = nodesOfKind(ir, "startEvent")[0];
   if (!start) throw new Error("시작 이벤트가 없습니다");
@@ -179,7 +181,7 @@ export function planScenarios(ir: IR, opts: PlanOptions = {}): Plan[] {
     for (const x of tasks) if (x.t.timer && (m & x.inMask) !== 0n && !next.has(x.t.id)) next.set(x.t.id, now);
     return next;
   };
-  const deadlineOf = (t: UserTaskNode, vars: Map<string, Value>): number => {
+  const deadlineOf = (t: TaskLike, vars: Map<string, Value>): number => {
     const d = t.timer!.deadline;
     return "seconds" in d ? d.seconds : Number(vars.get(d.var) ?? 0n);
   };

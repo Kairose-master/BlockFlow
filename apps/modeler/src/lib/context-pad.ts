@@ -7,6 +7,7 @@ type Entry = Record<string, unknown>;
 
 const APPENDABLE = [
   { type: "bpmn:UserTask", className: "bpmn-icon-user-task", title: "할 일 이어 붙이기" },
+  { type: "bpmn:ServiceTask", className: "bpmn-icon-service-task", title: "외부 서비스 이어 붙이기" },
   { type: "bpmn:ExclusiveGateway", className: "bpmn-icon-gateway-xor", title: "조건 분기 이어 붙이기" },
   { type: "bpmn:ParallelGateway", className: "bpmn-icon-gateway-parallel", title: "동시 진행 이어 붙이기" },
   { type: "bpmn:EndEvent", className: "bpmn-icon-end-event-none", title: "끝 이어 붙이기" },

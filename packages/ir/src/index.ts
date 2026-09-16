@@ -157,10 +157,30 @@ export interface AndJoinNode {
   out: string[];
 }
 
+/**
+ * L1 서비스 태스크 (오라클 콜백, 4.1): 토큰이 도착하면 컨트랙트가 ServiceRequested(id, taskId) 를 내고,
+ * 프로세스 소유자가 지정한 오라클 주소가 fulfill{Fn}(id, inputs…) 로 응답한다. 응답값은 프로세스 변수에 저장된다.
+ */
+export interface ServiceTaskNode {
+  id: string;
+  kind: "serviceTask";
+  bpmnId?: string;
+  taskId: number;
+  name: string;
+  label: string;
+  /** 오라클이 돌려주는 값 (함수 인자) */
+  inputs: TaskInput[];
+  in: string[];
+  out: string[];
+  tag?: string;
+  timer?: Timer;
+}
+
 export type Node =
   | StartEventNode
   | EndEventNode
   | UserTaskNode
+  | ServiceTaskNode
   | XorSplitNode
   | AndSplitNode
   | AndJoinNode;
@@ -196,6 +216,11 @@ export function userTasks(ir: IR): UserTaskNode[] {
   return ir.nodes.filter((n): n is UserTaskNode => n.kind === "userTask");
 }
 
+/** 함수가 되는 태스크 전부 (사용자 태스크 + 서비스 태스크), 문서 순서 */
+export function taskNodes(ir: IR): (UserTaskNode | ServiceTaskNode)[] {
+  return ir.nodes.filter((n): n is UserTaskNode | ServiceTaskNode => n.kind === "userTask" || n.kind === "serviceTask");
+}
+
 export function nodesOfKind<K extends NodeKind>(ir: IR, kind: K): Extract<Node, { kind: K }>[] {
   return ir.nodes.filter((n): n is Extract<Node, { kind: K }> => n.kind === kind);
 }
@@ -220,6 +245,7 @@ export function outFlows(n: Node): string[] {
     case "xorSplit":
       return [...n.branches.map((b) => b.flow), n.default];
     case "userTask":
+    case "serviceTask":
       return n.timer ? [...n.out, n.timer.out] : n.out;
     default:
       return n.out;

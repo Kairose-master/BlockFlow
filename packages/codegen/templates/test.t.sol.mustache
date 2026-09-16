@@ -63,7 +63,12 @@ contract {{contractName}}Handler is Test {
 
     function {{name}}(uint256 id{{#params}}, {{type}} {{name}}{{/params}}, uint8 who) external {
         id = bound(id, 1, p.instanceCount() + 1);
+{{#service}}
+        vm.prank(who % 2 == 0 ? p.oracle() : acc[who % {{roleCount}}]);
+{{/service}}
+{{^service}}
         vm.prank(acc[who % {{roleCount}}]);
+{{/service}}
         try p.{{name}}(id{{#params}}, {{name}}{{/params}}) {} catch {}
     }
 {{/tasks}}
@@ -79,6 +84,9 @@ contract {{contractName}}Invariants is Test {
         p = new {{contractName}}(address(this));
         h = new {{contractName}}Handler(p, acc);
         targetContract(address(h));
+{{#hasService}}
+        p.setOracle(address(0xACC0));
+{{/hasService}}
 {{#hasPayment}}
         address[] memory list = new address[]({{roleCount}});
         for (uint256 i = 0; i < {{roleCount}}; i++) list[i] = acc[i];
@@ -129,6 +137,9 @@ contract {{contractName}}Scenarios is Test {
     {{contractName}} p;
     address owner = address(0x01);
     address stranger = address(0xBAD);
+{{#hasService}}
+    address accOracle = address(0xACC0);
+{{/hasService}}
 {{#roles}}
     address {{var}} = {{addr}};
 {{/roles}}
@@ -141,6 +152,10 @@ contract {{contractName}}Scenarios is Test {
 
     function setUp() public {
         p = new {{contractName}}(owner);
+{{#hasService}}
+        vm.prank(owner);
+        p.setOracle(accOracle);
+{{/hasService}}
         // vm.prank 는 다음 외부 호출 1개에만 적용되므로 상수 getter 는 미리 읽어 둔다.
 {{#roles}}
         {{const}} = p.{{const}}();

@@ -18,8 +18,8 @@ export function translateError(err: ContractError, ir?: IR): Translation {
   const [a0, a1] = err.args;
   switch (err.name) {
     case "TaskNotEnabled": {
-      const task = ir?.nodes.find((n) => n.kind === "userTask" && n.taskId === Number(a1));
-      const label = task && task.kind === "userTask" ? task.label : undefined;
+      const task = ir?.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.taskId === Number(a1));
+      const label = task && (task.kind === "userTask" || task.kind === "serviceTask") ? task.label : undefined;
       return {
         message: label ? `[${label}]은(는) 아직 차례가 아니에요` : "이 일은 아직 차례가 아니에요",
         hint: { kind: "task", ...(task ? { id: task.id } : {}) },
@@ -41,9 +41,11 @@ export function translateError(err: ContractError, ir?: IR): Translation {
     case "RoleCount":
       return { message: "모든 역할의 담당자를 지정해 주세요", hint: { kind: "lane" } };
     case "NotExpired": {
-      const task = ir?.nodes.find((n) => n.kind === "userTask" && n.taskId === Number(a1));
-      return { message: `${task?.kind === "userTask" ? `[${task.label}] ` : ""}아직 기한이 지나지 않았어요`, hint: { kind: "task", ...(task ? { id: task.id } : {}) } };
+      const task = ir?.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.taskId === Number(a1));
+      return { message: `${task && (task.kind === "userTask" || task.kind === "serviceTask") ? `[${task.label}] ` : ""}아직 기한이 지나지 않았어요`, hint: { kind: "task", ...(task ? { id: task.id } : {}) } };
     }
+    case "NotOracle":
+      return { message: "이 단계는 지정된 외부 서비스(오라클)만 응답할 수 있어요", hint: { kind: "task" } };
     case "PaymentFailed":
       return { message: "결제가 되지 않았어요. 토큰 잔액과 이 프로세스에 대한 지출 승인(approve)을 확인하세요", hint: { kind: "task" } };
     case "Reentrant":
