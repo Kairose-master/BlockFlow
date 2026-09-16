@@ -108,8 +108,12 @@ contract ExpenseApprovalScenarios is Test {
     uint256 constant F8 = 1 << 7;
     uint256 constant F9 = 1 << 8;
 
+    bytes32 ROLE_REQUESTER;
+
     function setUp() public {
         p = new ExpenseApproval(owner);
+        // vm.prank 는 다음 외부 호출 1개에만 적용되므로, 인자 평가용 getter 호출이 prank 를 소모하지 않게 미리 읽어 둔다.
+        ROLE_REQUESTER = p.ROLE_REQUESTER();
     }
 
     function _create() internal returns (uint256 id) {
@@ -131,7 +135,7 @@ contract ExpenseApprovalScenarios is Test {
         p.approve(id, true);
 
         vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(ExpenseApproval.NotAuthorized.selector, id, p.ROLE_REQUESTER()));
+        vm.expectRevert(abi.encodeWithSelector(ExpenseApproval.NotAuthorized.selector, id, ROLE_REQUESTER));
         p.submit(id, 5000);
 
         vm.prank(requester);
@@ -220,11 +224,11 @@ contract ExpenseApprovalScenarios is Test {
 
         uint256 id = _create();
         vm.prank(owner);
-        p.rebindRole(id, p.ROLE_REQUESTER(), stranger);
+        p.rebindRole(id, ROLE_REQUESTER, stranger);
         vm.prank(stranger);
         p.submit(id, 10);
         vm.prank(requester);
-        vm.expectRevert(abi.encodeWithSelector(ExpenseApproval.NotAuthorized.selector, id, p.ROLE_REQUESTER()));
+        vm.expectRevert(abi.encodeWithSelector(ExpenseApproval.NotAuthorized.selector, id, ROLE_REQUESTER));
         p.uploadReceipt(id, bytes32(0));
     }
 
