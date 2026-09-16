@@ -191,7 +191,7 @@ rpc 모드는 viem 어댑터 + `.blockflow/state.json` 스냅샷. 모든 쓰기 
 다이어그램 위 제어 매핑: 시작 이벤트 클릭 = C2, 활성 태스크 클릭 = C3, 레인 헤더 = C4, 프로세스 헤더 = C5, "새 버전 배포" = C6.
 인덱서: `viem.watchContractEvent`, 재시작 시 `fromBlock` 부터 재생. 다운 시 UI 는 `enabledTasks()`/`instances()` 직접 조회로 폴백.
 트랜잭션 전 `simulateContract` 로 커스텀 에러를 잡아 "이 일은 아직 차례가 아니에요" 로 번역.
-결제 태스크: 로컬 모드는 배포 시 IR 의 `payToken` 주소마다 데모 ERC-20 을 etch 하고 데모 사용자 전원에게 잔액을 준다. 완료 API 는 전송 전에 잔액·allowance 를 읽어 부족하면 approve 를 먼저 보내므로(`ensureAllowance`) 비전문가는 "지출 승인" 개념을 몰라도 된다. rpc 모드는 실제 토큰의 allowance 만 확인·보충한다.
+결제 태스크: 로컬 모드는 배포 시 IR 의 `payToken` 주소마다 데모 ERC-20 을 etch 하고 데모 사용자 전원에게 잔액을 준다. 완료 API 는 전송 전에 잔액·allowance 를 읽어 부족하면 approve 를 먼저 보내므로(`ensureAllowance`) 비전문가는 "지출 승인" 개념을 몰라도 된다. rpc 모드는 실제 토큰의 allowance 만 확인·보충한다. 토큰 주소에 코드가 없으면(`ProcessAdapter.hasCode`) 원문 RPC 에러 대신 "이 체인에는 결제 토큰이 없어요" 로 알린다.
 
 ## 9. 지갑·가스 추상화 (Phase 2~3)
 

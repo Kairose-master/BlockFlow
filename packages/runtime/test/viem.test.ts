@@ -35,6 +35,8 @@ describe("ViemAdapter on Hardhat node", () => {
     const chainAdapter = new ViemAdapter({ rpcUrl: node.url, chain, pollingInterval: 200 });
     const { address, receipt, block } = await chainAdapter.deploy({ name: ir.process.id, abi: c.abi, bytecode: c.bytecode }, owner);
     expect(receipt.gasUsed).toBeGreaterThan(800_000n);
+    expect(await chainAdapter.hasCode(address)).toBe(true);
+    expect(await chainAdapter.hasCode("0x1000000000000000000000000000000000000001")).toBe(false);
     const abi = c.abi;
 
     const ix = new Indexer(chainAdapter);

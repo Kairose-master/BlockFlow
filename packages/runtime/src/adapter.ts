@@ -59,6 +59,9 @@ export interface ProcessAdapter {
   /** C1: 프로세스 배포. owner 가 소유자가 된다. */
   deploy(compiled: CompiledProcess, owner: Signer): Promise<{ address: Address; receipt: TxReceipt }>;
 
+  /** 주소에 컨트랙트 코드가 있는지. 결제 토큰처럼 다이어그램이 참조하는 외부 주소를 쓰기 전에 확인한다. */
+  hasCode(address: Address): Promise<boolean>;
+
   /** 읽기 전용 호출 (instances(id), enabledTasks(id), roleOf(...)). */
   read(address: Address, abi: Abi, fn: string, args?: readonly unknown[]): Promise<unknown>;
 

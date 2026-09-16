@@ -67,6 +67,11 @@ export class ViemAdapter implements ProcessAdapter {
     return { address: r.contractAddress, receipt: { hash, gasUsed: r.gasUsed, events: this.decodeLogs(compiled.abi, r.logs) }, block: r.blockNumber };
   }
 
+  async hasCode(address: Address): Promise<boolean> {
+    const code = await this.publicClient.getCode({ address });
+    return !!code && code !== "0x";
+  }
+
   async read(address: Address, abi: Abi, fn: string, args: readonly unknown[] = []): Promise<unknown> {
     return this.publicClient.readContract({ address, abi, functionName: fn, args: args as unknown[] });
   }

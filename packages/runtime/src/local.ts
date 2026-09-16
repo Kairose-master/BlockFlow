@@ -109,6 +109,11 @@ export class LocalEvmAdapter implements ProcessAdapter {
     return { address, receipt: { hash, gasUsed: r.totalGasSpent, events: this.decodeEvents(compiled.abi, r.execResult.logs) } };
   }
 
+  async hasCode(address: Address): Promise<boolean> {
+    const code = await this.vm.stateManager.getCode(new EjsAddress(hexToBytes(address)));
+    return code.length > 0;
+  }
+
   async read(address: Address, abi: Abi, fn: string, args: readonly unknown[] = []): Promise<unknown> {
     const data = encodeFunctionData({ abi, functionName: fn, args: args as unknown[] });
     const r = await this.vm.evm.runCall({ to: new EjsAddress(hexToBytes(address)), data: hexToBytes(data), gasLimit: 5_000_000n, block: this.nextBlock() });

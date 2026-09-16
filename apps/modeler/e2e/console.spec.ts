@@ -233,6 +233,8 @@ test("L1 오라클: 외부 서비스 단계는 지정된 오라클 사용자만 
 });
 
 test("L1 결제: 결제 태스크를 완료하면 지출 승인 없이도 토큰이 지급된다 (로컬 데모 토큰)", async ({ page }) => {
+  // 예시의 토큰 주소(0x1000…0001)에 데모 토큰을 심는 것은 로컬 모드만 한다. rpc 모드는 실제 토큰이 있어야 한다.
+  test.skip(!!process.env.BLOCKFLOW_RPC_URL, "rpc 모드에는 예시 토큰 주소에 컨트랙트가 없다");
   test.setTimeout(120_000);
   await page.goto("/");
   await expect(page.getByTestId("user-select")).toBeVisible();

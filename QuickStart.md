@@ -148,6 +148,7 @@ cd contracts && forge install foundry-rs/forge-std && forge test -vv
 ```bash
 pnpm modeler:build
 PW_CHROMIUM=/path/to/chromium pnpm modeler:e2e     # Playwright 14건: 모델러 7 + 콘솔 7
+# rpc 모드로 돌리면(BLOCKFLOW_RPC_URL 설정) 결제 테스트 1건은 건너뛴다 — 예시 토큰 주소에 컨트랙트가 없어서
 ```
 
 ## 8. 막혔을 때
@@ -159,6 +160,7 @@ PW_CHROMIUM=/path/to/chromium pnpm modeler:e2e     # Playwright 14건: 모델러
 | 할 일이 비어 있다 | 내가 그 건의 담당자로 지정됐는지(보드 인스턴스의 역할) 확인한다 |
 | rpc 모드 기동 시 경고 | `pnpm chain:probe <url>` 결과대로 노드가 `eth_*` 를 지원하는지, PUSH0 이 안 되면 `BLOCKFLOW_EVM_VERSION=paris` |
 | 로컬 모드에서 배포한 게 사라졌다 | 서버 재시작으로 인메모리 체인이 초기화된 것. 남기려면 rpc 모드 |
+| rpc 모드에서 "이 체인에는 결제 토큰(0x1000…)이 없어요" | 예시의 결제 토큰 주소는 로컬 모드용 자리표시다. 속성 패널에서 그 체인에 있는 ERC-20 주소로 바꾼다 |
 | `ERR_PNPM_OUTDATED_LOCKFILE` | `pnpm install` 후 `pnpm-lock.yaml` 을 함께 커밋 |
 
 더 읽기: `README.md` (현재 상태·구조), `docs/DESIGN.md` (설계 결정·규칙·생성 규칙), `docs/measurements.md` (측정표), `CLAUDE.md` (기여 규칙).

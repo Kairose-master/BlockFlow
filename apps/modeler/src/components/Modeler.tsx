@@ -49,6 +49,8 @@ export function Modeler() {
   const [result, setResult] = useState<CompileResult | null>(null);
   const [tab, setTab] = useState<"summary" | "sol">("summary");
   const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 보드에서 넘어온 XML. sessionStorage 에서 한 번만 읽고 지운다 — dev StrictMode 가 effect 를 두 번 돌려도 두 번째엔 ref 를 쓴다. */
+  const openedRef = useRef<string | null | undefined>(undefined);
   const [deploying, setDeploying] = useState(false);
   const [deployError, setDeployError] = useState("");
   const [restored, setRestored] = useState<"draft" | "open" | null>(null);
@@ -115,17 +117,21 @@ export function Modeler() {
       void runLint();
     });
     // 우선순위: 보드에서 넘어온 XML → 저장된 초안 → 빈 다이어그램
-    const opened = readStorage(sessionStorage, OPEN_KEY);
+    if (openedRef.current === undefined) {
+      openedRef.current = readStorage(sessionStorage, OPEN_KEY);
+      if (openedRef.current) {
+        try {
+          sessionStorage.removeItem(OPEN_KEY);
+        } catch {
+          /* */
+        }
+      }
+    }
+    const opened = openedRef.current;
     const draft = readStorage(localStorage, DRAFT_KEY);
     const initial = opened ?? draft ?? INITIAL_XML;
-    if (opened) {
-      try {
-        sessionStorage.removeItem(OPEN_KEY);
-      } catch {
-        /* */
-      }
-      setRestored("open");
-    } else if (draft) setRestored("draft");
+    if (opened) setRestored("open");
+    else if (draft) setRestored("draft");
     void modeler.importXML(initial).then(() => {
       setReady(true);
       if (opened) {

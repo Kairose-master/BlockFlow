@@ -65,6 +65,8 @@ describe("LocalEvmAdapter: simulate → send, watch, read", () => {
     const chain = await LocalEvmAdapter.create([owner, req, mgr, fin]);
     const { address, receipt } = await chain.deploy(compiled, owner);
     expect(receipt.gasUsed).toBe(905046n);
+    expect(await chain.hasCode(address)).toBe(true);
+    expect(await chain.hasCode("0x1000000000000000000000000000000000000001")).toBe(false); // 예시의 결제 토큰 자리표시 주소
     const abi = compiled.abi;
 
     const seen: string[] = [];

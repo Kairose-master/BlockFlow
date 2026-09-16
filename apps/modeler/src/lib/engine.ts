@@ -176,11 +176,23 @@ export class Engine {
     }
   }
 
-  /** 결제 태스크 완료 전에 담당자의 지출 승인(allowance)이 모자라면 approve 를 대신 보낸다. 승인했으면 true. */
+  /**
+   * 결제 태스크 완료 전에 담당자의 지출 승인(allowance)이 모자라면 approve 를 대신 보낸다. 승인했으면 true.
+   * 토큰 주소에 코드가 없거나(예시의 자리표시 주소를 실제 체인에 그대로 쓴 경우) 읽기가 실패하면 viem 원문 대신 한국어로 알린다.
+   */
   async ensureAllowance(token: Address, spender: Address, user: DemoUser, amount: bigint): Promise<boolean> {
-    const allowance = (await this.adapter.read(token, ERC20_ABI, "allowance", [user.address, spender])) as bigint;
-    if (allowance >= amount) return false;
-    const balance = (await this.adapter.read(token, ERC20_ABI, "balanceOf", [user.address])) as bigint;
+    if (!(await this.adapter.hasCode(token))) {
+      throw new ApiError(400, `이 체인에는 결제 토큰(${token})이 없어요. 다이어그램의 결제 토큰 주소를 이 체인에 있는 토큰으로 바꿔 주세요.`);
+    }
+    let allowance: bigint;
+    let balance: bigint;
+    try {
+      allowance = (await this.adapter.read(token, ERC20_ABI, "allowance", [user.address, spender])) as bigint;
+      if (allowance >= amount) return false;
+      balance = (await this.adapter.read(token, ERC20_ABI, "balanceOf", [user.address])) as bigint;
+    } catch {
+      throw new ApiError(400, `결제 토큰(${token})을 읽을 수 없어요. ERC-20 토큰 주소가 맞는지 확인해 주세요.`);
+    }
     if (balance < amount) throw new ApiError(400, `토큰 잔액이 모자라요 (필요 ${amount}, 보유 ${balance})`);
     await this.adapter.send(token, ERC20_ABI, "approve", [spender, amount], user.signer);
     return true;
