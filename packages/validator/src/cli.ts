@@ -2,7 +2,7 @@
 /** tsx packages/validator/src/cli.ts <ir.json>... — 구조 + soundness 검사 결과를 출력한다. */
 import { readFileSync } from "node:fs";
 import type { IR } from "@blockflow/ir";
-import { checkSoundness, checkStructure } from "./index.js";
+import { checkSoundness, checkStructure } from "./index";
 
 let failed = false;
 for (const path of process.argv.slice(2)) {

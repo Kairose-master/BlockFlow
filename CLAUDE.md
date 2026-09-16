@@ -12,6 +12,8 @@ pnpm gen:examples                 # packages/bpmn/examples/*.bpmn → contracts/
 pnpm bpmn lint <file.bpmn>        # 규칙 R1~R12
 pnpm bpmn compile <file.bpmn>     # BPMN → Solidity (stdout)
 cd contracts && forge test -vv    # Foundry 가 있을 때 (CI 가 항상 실행)
+pnpm modeler                      # 모델러 개발 서버 (apps/modeler, http://localhost:3000)
+pnpm modeler:build && PW_CHROMIUM=/path/to/chrome pnpm modeler:e2e   # Playwright E2E
 ```
 
 ## 지켜야 할 것
@@ -26,4 +28,5 @@ cd contracts && forge test -vv    # Foundry 가 있을 때 (CI 가 항상 실행
 
 ## 패키지 의존 방향
 
-`ir` ← `validator` ← `codegen` ← `bpmn`, `runtime` ← `ir`. 역방향 import 금지 (테스트는 예외).
+`ir` ← `validator` ← `codegen` ← `bpmn`, `runtime` ← `ir`, `apps/modeler` ← 전부. 역방향 import 금지 (테스트는 예외).
+브라우저 번들에 들어가는 코드(`packages/bpmn`, `@blockflow/codegen/expr`, `/names`)는 `node:fs` 등 Node 전용 API 를 쓰지 않는다.

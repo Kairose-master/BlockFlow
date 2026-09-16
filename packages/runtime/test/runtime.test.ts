@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { decodeFunctionData } from "viem";
 import { parseBpmn } from "@blockflow/bpmn";
 import { generate } from "@blockflow/codegen";
-import { compile } from "../../codegen/test/helpers/solc.js";
-import { ROOT } from "../../codegen/test/helpers/examples.js";
-import { LocalEvmAdapter, SimulationFailed, buildTxPackage, buildUnsignedTx, describe as describeTx, localSigner, roleHash, translateError } from "../src/index.js";
+import { compile } from "../../codegen/test/helpers/solc";
+import { ROOT } from "../../codegen/test/helpers/examples";
+import { LocalEvmAdapter, SimulationFailed, buildTxPackage, buildUnsignedTx, describe as describeTx, localSigner, roleHash, translateError } from "../src/index";
 
 async function expense() {
   const { ir } = await parseBpmn(readFileSync(join(ROOT, "packages", "bpmn", "examples", "expense-approval.bpmn"), "utf8"));

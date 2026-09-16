@@ -12,8 +12,8 @@ import { type Abi, decodeErrorResult, decodeEventLog, decodeFunctionResult, enco
 import {
   type Address, type CompiledProcess, type DecodedEvent, type ProcessAdapter, type Signer, type Simulation,
   SimulationFailed, type TxReceipt,
-} from "./adapter.js";
-import { translateError } from "./errors.js";
+} from "./adapter";
+import { translateError } from "./errors";
 
 export interface LocalSigner extends Signer {
   pk: Uint8Array;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileExpr, ExprError } from "../src/expr.js";
+import { compileExpr, ExprError } from "../src/expr";
 
 const ir = {
   variables: [

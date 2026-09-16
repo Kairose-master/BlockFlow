@@ -9,7 +9,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { generate, generateFoundryTest, GenerateError } from "@blockflow/codegen";
-import { lintBpmn, parseBpmn, ParseError } from "./parse.js";
+import { lintBpmn, parseBpmn, ParseError } from "./parse";
 
 async function main(argv: string[]): Promise<number> {
   const [cmd, ...rest] = argv;

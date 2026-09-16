@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { IR, UserTaskNode } from "@blockflow/ir";
-import { checkSoundness, checkStructure } from "../src/index.js";
+import { checkSoundness, checkStructure } from "../src/index";
 
 const examplesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "ir", "examples");
 const load = (f: string) => JSON.parse(readFileSync(join(examplesDir, f), "utf8")) as IR;

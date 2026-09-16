@@ -1,2 +1,2 @@
-export { checkStructure } from "./structure.js";
-export { checkSoundness, type Problem, type SoundnessResult } from "./soundness.js";
+export { checkStructure } from "./structure";
+export { checkSoundness, type Problem, type SoundnessResult } from "./soundness";

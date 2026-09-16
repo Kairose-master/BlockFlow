@@ -14,3 +14,9 @@ contracts/broadcast/
 .env
 .env.*
 !.env.example
+
+# Next.js / Playwright
+.next/
+next-env.d.ts
+apps/modeler/test-results/
+apps/modeler/playwright-report/

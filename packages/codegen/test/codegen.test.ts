@@ -3,9 +3,9 @@
  * 와 diff 0 이고, solc 0.8.37 에서 경고 0 으로 컴파일된다.
  */
 import { describe, expect, it } from "vitest";
-import { generate } from "../src/index.js";
-import { compile, solcVersion } from "./helpers/solc.js";
-import { exampleFiles, loadExample, readContract } from "./helpers/examples.js";
+import { generate } from "../src/index";
+import { compile, solcVersion } from "./helpers/solc";
+import { exampleFiles, loadExample, readContract } from "./helpers/examples";
 
 describe("codegen 스냅샷", () => {
   it("solc 0.8.37 을 쓴다", () => {

@@ -5,7 +5,7 @@
  * 실패할 트랜잭션에는 가스를 쓰지 않는다.
  */
 import type { IR } from "@blockflow/ir";
-import type { ContractError } from "./adapter.js";
+import type { ContractError } from "./adapter";
 
 export interface Translation {
   /** 사용자에게 보여줄 문장 */

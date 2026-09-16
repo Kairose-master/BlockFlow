@@ -5,15 +5,31 @@
  *   {Name}Invariants : noGhostTokens · endedMeansEmpty · noDeadlock · xorExclusive
  *   {Name}Scenarios  : planScenarios() 가 만든 도달 경로마다 test_path_<n> (활성화 전/권한 없음/종료 후 거부 포함)
  */
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Mustache from "mustache";
 import { type IR, maskOf, nodesOfKind, userTasks } from "@blockflow/ir";
-import { roleConst, screamingSnake, taskConst, uniqueName } from "./names.js";
-import { defaultRoleAddress, type Plan, planScenarios, solValue } from "./scenarios.js";
+import { roleConst, screamingSnake, taskConst, uniqueName } from "./names";
+import { defaultRoleAddress, type Plan, planScenarios, solValue } from "./scenarios";
 
-const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), "..", "templates", "test.t.sol.mustache");
+function templatePath(): string {
+  const candidates: string[] = [];
+  try {
+    candidates.push(join(dirname(fileURLToPath(import.meta.url)), "..", "templates"));
+  } catch {
+    /* 번들러 */
+  }
+  if (process.env.BLOCKFLOW_TEMPLATES_DIR) candidates.push(process.env.BLOCKFLOW_TEMPLATES_DIR);
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    candidates.push(resolve(dir, "packages", "codegen", "templates"));
+    dir = dirname(dir);
+  }
+  const found = candidates.find((c) => existsSync(join(c, "test.t.sol.mustache")));
+  if (!found) throw new Error("codegen 테스트 템플릿을 찾을 수 없습니다");
+  return join(found, "test.t.sol.mustache");
+}
 
 function hex(m: bigint): string {
   return "0x" + m.toString(16);
@@ -97,7 +113,7 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
     }),
     roleIndexOf: (key: string) => roleIndex.get(key),
   };
-  const tpl = readFileSync(TEMPLATE, "utf8");
+  const tpl = readFileSync(templatePath(), "utf8");
   return Mustache.render(tpl, ctx, {}, { escape: (v: unknown) => String(v) });
 }
 

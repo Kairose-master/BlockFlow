@@ -65,6 +65,13 @@ EVM 체인 (Base Sepolia → Base) 또는 Kaia Kairos → Kaia : ProcessContract
 
 **L0 형식 제약: 프로세스는 1-safe 워크플로우 넷** (모든 플로우에 토큰 최대 1개). 비트맵 인코딩의 정확성 조건이며 검증기가 강제한다.
 
+### 모델러 구현 메모 (`apps/modeler`)
+
+- bpmn-js 는 레인을 풀(참여자) 안에 그리므로 새 다이어그램은 협업 + 참여자 1개로 시작한다. 파서는 참여자 1개짜리 협업을 허용한다.
+- 속성 패널은 bpmn-js-properties-panel 대신 React 로 직접 만들었다 (한국어 라벨·조건 빌더를 자유롭게 두기 위해). `modeling.updateProperties` / `updateModdleProperties` 로 쓰므로 undo 가 된다.
+- 예시 BPMN(DI 없음)은 `packages/bpmn/src/layout.ts` 가 레인 인식 자동 배치로 좌표를 붙여 연다.
+- 컴파일은 서버 라우트(`/api/compile`)에서 규칙 → IR → soundness → Solidity → solc 0.8.37 을 실행한다. 브라우저에는 파서·규칙만 번들된다.
+
 ### 확장 속성 (moddle 네임스페이스 `bc`, 부록 A = `packages/bpmn/moddle/bc.json`)
 
 | 대상 | 속성 | 의미 |
@@ -154,7 +161,7 @@ string 입력은 받지 않는다 (클라이언트가 keccak/IPFS CID 로 bytes3
 | V2 Soundness | 저장/컴파일 요청 시 | 자체 Petri net BFS | **구현됨** `packages/validator/src/soundness.ts` |
 | V3 정적 분석 | 컴파일 후 | solc + Slither 0.11.6 + SMTChecker(CHC) | Phase 1 |
 | V4 자동 테스트 | 배포 전 | Foundry 1.8 invariant + 시나리오 | **구현됨** `packages/codegen/src/{scenarios,foundry}.ts` → `contracts/test/generated` |
-| V5 미리보기 | 언제나 | bpmn-js-token-simulation 0.40 | Phase 2 |
+| V5 미리보기 | 언제나 | bpmn-js-token-simulation 0.40 | **구현됨** `apps/modeler` "미리보기" |
 
 V2 알고리즘: 상태 = marking 하나 (1-safe + 비트맵). 조건식은 비결정적 선택으로 추상화. BFS 로 (a) 1-safe 위반, (b) 데드락, (c) 종료 시 marking ≠ 0 ("남은 토큰"), (d) dead task 를 검출.
 L0 는 상태 수가 수백~수천이라 밀리초 안에 끝난다.
@@ -194,7 +201,7 @@ viem 2.56 / wagmi 3.7 · permissionless.js 0.4 · Privy 3.43 / Base Account 2.5 
 |---|---|---|---|
 | **0 골격** | 1–2 | 리포 구조, IR 스키마, 예시 IR 3개, 6.6 컨트랙트 템플릿 재생성 diff 0 | `pnpm test` 스냅샷 통과 — **완료** |
 | **1 컴파일러** | 3–5 | bpmn-moddle 파서 → IR, V1 규칙, V2 BFS, Mustache 생성기, solc 컴파일, Foundry 테스트 생성 | 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 — **완료** (`packages/bpmn/examples`, JS EVM + forge) |
-| 2 모델러 | 6–8 | 팔레트 제한, bc 속성 패널, 조건 빌더, 토큰 시뮬레이션, 한국어 오류 메시지 | 비개발자 3명이 설명 없이 "경비 승인" 을 그려 컴파일 통과 |
+| **2 모델러** | 6–8 | 팔레트 제한, bc 속성 패널, 조건 빌더, 토큰 시뮬레이션, 한국어 오류 메시지 | 구현 완료 (`apps/modeler`, Playwright E2E 5건). 비개발자 3명 사용자 테스트는 미실시 |
 | 3 런타임 | 9–12 | 배포 어댑터, 인덱서, 4개 화면, 임베디드 지갑 + 스폰서 | 3인 3역할로 인스턴스 10건 완주, 가스 0원 체감 |
 | 4 확장 | 13+ | L1 요소, 버전 교체 투표, 신용서비스 프리셋, 논문화 | — |
 

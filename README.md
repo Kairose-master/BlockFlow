@@ -31,6 +31,21 @@
 | Foundry 테스트 생성 | `packages/codegen/src/{scenarios,foundry}.ts` — 불변식 4개 + 도달 경로마다 시나리오 1개 (음성 케이스 포함) |
 | 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 | `packages/bpmn/examples/*.bpmn` → `contracts/src/*.sol`. `pnpm test` 가 JS EVM 에서 5개 전부 배포하고 모든 경로를 실행, CI 의 `forge test` 가 같은 시나리오와 불변식을 실행 |
 
+**Phase 2 "모델러" — 구현 완료 (`apps/modeler`, Next.js 16 + bpmn-js 18)**
+
+| 완료 기준 | 상태 |
+|---|---|
+| 팔레트 제한 | 손·선택·시작·끝·할 일·XOR·AND 7개. 컨텍스트 패드도 연결·삭제·이어 붙이기만 |
+| bc 속성 패널 | 프로세스 값, 역할(레인) 식별자·담당자 지정 방식, 할 일 영문 이름·입력값, 화살표 조건·기본 화살표, 끝 결과 — 전부 한국어 |
+| 조건 빌더 | "만약 [금액] 이 [보다 큼] [1000]" 드롭다운 ↔ `bc:expr` |
+| 토큰 시뮬레이션 | bpmn-js-token-simulation 0.40 "미리보기" |
+| 한국어 오류 메시지 | 편집 즉시 R1~R12 검사 → 요소 배지 + 목록 (클릭하면 요소 선택) |
+| 비개발자 3명이 설명 없이 "경비 승인" 을 그려 컴파일 통과 | **사람 대상 테스트는 아직**. 자동 E2E(Playwright 5건)는 예시 열기 → 컴파일 = 부록 C, 규칙 위반 즉시 표시, 빈 다이어그램에서 역할·값 추가까지 확인 |
+
+```bash
+pnpm modeler   # http://localhost:3000
+```
+
 **Phase 3 선행** — `packages/runtime`: 배포·서명 어댑터 인터페이스를 먼저 고정 (가이드 9.5). 쓰기는 항상 시뮬레이션 → 성공한 호출만 전송,
 커스텀 에러는 비전문가 문장으로 번역 (8.4), 소유자 제어는 Safe Transaction Builder 호환 "서명 없는 트랜잭션 패키지" 로 내보낼 수 있다.
 CI 에 Slither 정적 분석(V3)을 추가했다. 코딩 에이전트용 절차는 `CLAUDE.md` 와 `.claude/skills/blockflow/`.
@@ -46,6 +61,8 @@ packages/
   codegen/     @blockflow/codegen   IR → Solidity, IR → Foundry 테스트, 조건식 DSL, 시나리오  (6장, 4.4, 7.4)
   bpmn/        @blockflow/bpmn      BPMN XML → IR 파서, 규칙 R1~R12, bc moddle 확장, 예시 5개 (4장, 5.2, 부록 A)
   runtime/     @blockflow/runtime   어댑터 인터페이스(deploy/simulate/send/watch), 에러 번역, 서명 없는 tx 패키지, 로컬 EVM (8.4, 9.5)
+apps/
+  modeler/     @blockflow/modeler   Next.js + bpmn-js 모델러: 팔레트 제한, bc 속성 패널, 조건 빌더, 즉시 검사, 미리보기, 컴파일 API (Phase 2)
 contracts/
   src/         생성된 컨트랙트 (손으로 고치지 않음)                                         (부록 C)
   test/        생성된 Foundry 테스트(generated/) + 부록 D 참조본                             (부록 D, 7.6)

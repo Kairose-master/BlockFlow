@@ -1,0 +1,38 @@
+@import "tailwindcss";
+@import "bpmn-js/dist/assets/diagram-js.css";
+@import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
+@import "bpmn-js/dist/assets/bpmn-js.css";
+@import "bpmn-js-token-simulation/assets/css/bpmn-js-token-simulation.css";
+
+:root {
+  --bf-bg: #f7f7f5;
+  --bf-panel: #ffffff;
+  --bf-line: #e4e4e0;
+  --bf-text: #1f2937;
+  --bf-muted: #6b7280;
+  --bf-accent: #2563eb;
+  --bf-danger: #dc2626;
+}
+
+html, body { height: 100%; margin: 0; background: var(--bf-bg); color: var(--bf-text); font-family: ui-sans-serif, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+
+/* 팔레트 워터마크(bpmn-js 라이선스 조건)는 그대로 둔다 */
+.djs-container { background: var(--bf-panel); }
+
+/* 규칙 위반 배지 */
+.bf-badge {
+  width: 18px; height: 18px; border-radius: 9px; background: var(--bf-danger); color: #fff;
+  font: 700 12px/18px ui-sans-serif, system-ui; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.3); cursor: help;
+}
+
+/* 선택된 진단의 요소 강조 */
+.djs-element.bf-highlight .djs-visual > :first-child { stroke: var(--bf-danger) !important; stroke-width: 3px !important; }
+
+.btn { border: 1px solid var(--bf-line); background: #fff; border-radius: 6px; padding: 4px 10px; font-size: 13px; }
+.btn:hover:not(:disabled) { background: #f3f4f6; }
+.btn:disabled { opacity: .5; }
+.btn-primary { background: var(--bf-accent); border-color: var(--bf-accent); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+
+/* 토큰 시뮬레이션의 자체 토글은 숨긴다 (툴바의 "미리보기" 버튼이 대신한다). 팔레트 왼쪽 위를 가려 클릭을 막기도 한다. */
+.bts-toggle-mode { display: none; }

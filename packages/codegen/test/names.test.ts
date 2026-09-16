@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isReserved, roleConst, screamingSnake, taskConst, toIdentifier, uniqueName } from "../src/names.js";
+import { isReserved, roleConst, screamingSnake, taskConst, toIdentifier, uniqueName } from "../src/names";
 
 describe("names", () => {
   it("라벨 → 식별자", () => {

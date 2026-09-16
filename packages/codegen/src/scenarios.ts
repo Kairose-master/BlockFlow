@@ -8,7 +8,7 @@
  * Plan 은 Foundry 테스트(foundry.ts)와 JS EVM 테스트가 같이 쓴다.
  */
 import { type IR, type UserTaskNode, maskOf, nodesOfKind, userTasks } from "@blockflow/ir";
-import { type Ast, type Value, evalExpr, literalsFor, parseExpr } from "./expr.js";
+import { type Ast, type Value, evalExpr, literalsFor, parseExpr } from "./expr";
 
 export interface PlanStep {
   task: UserTaskNode;

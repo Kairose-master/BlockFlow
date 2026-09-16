@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
-import { IR_VERSION, type IR, maskOf, userTasks } from "../src/index.js";
+import { IR_VERSION, type IR, maskOf, userTasks } from "../src/index";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const schema = JSON.parse(readFileSync(join(here, "..", "schema", "bf-ir.schema.json"), "utf8"));

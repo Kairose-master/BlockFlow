@@ -8,10 +8,10 @@ import { describe, expect, it } from "vitest";
 import type { IR } from "@blockflow/ir";
 import { keccak256, stringToHex } from "viem";
 import { generate, generateFoundryTest, planScenarios, type Plan } from "@blockflow/codegen";
-import { parseBpmn } from "../src/index.js";
-import { compile } from "../../codegen/test/helpers/solc.js";
-import { Harness, account, type Account } from "../../codegen/test/helpers/evm.js";
-import { ROOT } from "../../codegen/test/helpers/examples.js";
+import { parseBpmn } from "../src/index";
+import { compile } from "../../codegen/test/helpers/solc";
+import { Harness, account, type Account } from "../../codegen/test/helpers/evm";
+import { ROOT } from "../../codegen/test/helpers/examples";
 
 const BPMN_DIR = join(ROOT, "packages", "bpmn", "examples");
 const files = readdirSync(BPMN_DIR).filter((f) => f.endsWith(".bpmn")).sort();

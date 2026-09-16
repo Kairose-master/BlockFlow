@@ -8,7 +8,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { IR } from "@blockflow/ir";
-import { generate, GenerateError } from "./index.js";
+import { generate, GenerateError } from "./index";
 
 function loadIR(path: string): IR {
   return JSON.parse(readFileSync(path, "utf8")) as IR;

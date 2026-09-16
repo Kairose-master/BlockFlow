@@ -6,12 +6,11 @@
  *
  * 진단(Diagnostic)은 비전문가용 한국어 메시지 + 요소 id 를 가진다. UI 는 id 로 요소에 빨간 배지를 붙인다.
  */
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { BpmnModdle, type ModdleElement } from "bpmn-moddle";
 import type { EndEventNode, Flow, IR, Node, Role, TaskInput, UserTaskNode, VarType, Variable } from "@blockflow/ir";
-import { compileExpr, ExprError, names } from "@blockflow/codegen";
+import { compileExpr, ExprError } from "@blockflow/codegen/expr";
+import * as names from "@blockflow/codegen/names";
+import BC from "../moddle/bc.json" with { type: "json" };
 
 export interface Diagnostic {
   /** 규칙 번호 (R1~R12) 또는 "L0" (지원하지 않는 요소) / "XML". */
@@ -37,7 +36,10 @@ export interface ParseResult {
   warnings: string[];
 }
 
-const BC = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "moddle", "bc.json"), "utf8")) as Record<string, unknown>;
+/** 브라우저·Node 공용 moddle 인스턴스 팩토리. */
+export function createModdle(): BpmnModdle {
+  return new BpmnModdle({ bc: BC as unknown as Record<string, unknown> });
+}
 
 const VAR_TYPES = new Set<string>(["uint256", "int256", "bool", "address", "bytes32"]);
 
@@ -126,8 +128,15 @@ const UNSUPPORTED_MESSAGES: Record<string, string> = {
 function buildGraph(defs: ModdleElement, diags: Diagnostic[]): Graph | undefined {
   const roots = arr(defs.rootElements);
   const processes = roots.filter((r) => r.$type === "bpmn:Process");
-  if (roots.some((r) => r.$type === "bpmn:Collaboration")) {
-    diags.push({ rule: "L0", message: "풀(참여자)이 여러 개인 협업 다이어그램은 아직 지원하지 않아요. 풀 하나에 역할을 레인으로 그려 주세요" });
+  // bpmn-js 는 레인을 풀(참여자) 안에 그리므로 참여자 1개짜리 협업은 허용한다 (D4: 단일 풀 + 레인).
+  for (const collab of roots.filter((r) => r.$type === "bpmn:Collaboration")) {
+    const participants = arr(collab.participants);
+    if (participants.length > 1) {
+      diags.push({ rule: "L0", message: "풀(참여자)이 여러 개인 협업 다이어그램은 아직 지원하지 않아요. 풀 하나에 역할을 레인으로 그려 주세요", elementId: str(collab.id) });
+    }
+    if (arr(collab.messageFlows).length) {
+      diags.push({ rule: "L0", message: "메시지 플로우는 L1 에서 지원돼요", elementId: str(collab.id) });
+    }
   }
   if (processes.length !== 1) {
     diags.push({ rule: "L0", message: `프로세스는 하나여야 해요 (현재 ${processes.length}개)` });
@@ -542,7 +551,7 @@ export async function lintBpmn(xml: string): Promise<Diagnostic[]> {
   const diags: Diagnostic[] = [];
   let defs: ModdleElement;
   try {
-    const r = await new BpmnModdle({ bc: BC }).fromXML(xml);
+    const r = await createModdle().fromXML(xml);
     defs = r.rootElement;
     for (const w of r.warnings) diags.push({ rule: "XML", message: "다이어그램 파일에 알 수 없는 내용이 있어요", detail: w.message });
   } catch (e) {
@@ -556,7 +565,7 @@ export async function lintBpmn(xml: string): Promise<Diagnostic[]> {
 /** BPMN XML → IR. 규칙 위반이 있으면 ParseError 를 던진다. */
 export async function parseBpmn(xml: string): Promise<ParseResult> {
   const diags: Diagnostic[] = [];
-  const r = await new BpmnModdle({ bc: BC }).fromXML(xml);
+  const r = await createModdle().fromXML(xml);
   const warnings = r.warnings.map((w) => w.message);
   const g = buildGraph(r.rootElement, diags);
   if (g && !diags.some((d) => d.rule === "L0")) checkRules(g, diags);

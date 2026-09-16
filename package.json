@@ -16,7 +16,10 @@
     "bpmn": "tsx packages/bpmn/src/cli.ts",
     "gen:examples": "tsx packages/bpmn/src/cli.ts all packages/bpmn/examples contracts/src contracts/test/generated",
     "lint:bpmn": "for f in packages/bpmn/examples/*.bpmn; do tsx packages/bpmn/src/cli.ts lint \"$f\" || exit 1; done",
-    "check:sound": "tsx packages/validator/src/cli.ts packages/ir/examples/*.json"
+    "check:sound": "tsx packages/validator/src/cli.ts packages/ir/examples/*.json",
+    "modeler": "pnpm --filter @blockflow/modeler dev",
+    "modeler:build": "pnpm --filter @blockflow/modeler build",
+    "modeler:e2e": "pnpm --filter @blockflow/modeler e2e"
   },
   "dependencies": {
     "bpmn-moddle": "^10.2.0"

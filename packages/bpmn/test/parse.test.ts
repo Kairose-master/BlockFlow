@@ -9,7 +9,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import { generate } from "@blockflow/codegen";
 import { checkSoundness, checkStructure } from "@blockflow/validator";
-import { lintBpmn, parseBpmn, ParseError } from "../src/index.js";
+import { lintBpmn, parseBpmn, ParseError } from "../src/index";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..", "..", "..");

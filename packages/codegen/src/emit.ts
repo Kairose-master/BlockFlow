@@ -15,8 +15,8 @@ import {
   outFlows,
   userTasks,
 } from "@blockflow/ir";
-import { compileExpr } from "./expr.js";
-import { padEnd, roleConst, screamingSnake, taskConst, uniqueName } from "./names.js";
+import { compileExpr } from "./expr";
+import { padEnd, roleConst, screamingSnake, taskConst, uniqueName } from "./names";
 
 export interface TemplateContext {
   contractName: string;

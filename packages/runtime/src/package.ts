@@ -9,7 +9,7 @@
  */
 import { type Abi, type AbiFunction, encodeFunctionData, getAbiItem } from "viem";
 import type { IR } from "@blockflow/ir";
-import type { Address } from "./adapter.js";
+import type { Address } from "./adapter";
 
 export interface UnsignedTx {
   to: Address;

@@ -4,10 +4,10 @@
  *   - 인스턴스 1 (승인 경로), 2 (소액 우회), 3 (반려) 가 기대대로 종료된다
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { generate } from "../src/index.js";
-import { compile } from "./helpers/solc.js";
-import { Harness, account, type TxResult } from "./helpers/evm.js";
-import { loadExample } from "./helpers/examples.js";
+import { generate } from "../src/index";
+import { compile } from "./helpers/solc";
+import { Harness, account, type TxResult } from "./helpers/evm";
+import { loadExample } from "./helpers/examples";
 
 const owner = account("owner", 0x01);
 const requester = account("requester", 0xa1);
