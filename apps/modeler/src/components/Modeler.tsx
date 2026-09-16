@@ -100,7 +100,6 @@ export function Modeler() {
     if (!containerRef.current) return;
     const modeler = new BpmnModeler({
       container: containerRef.current,
-      keyboard: { bindTo: document },
       additionalModules: [paletteModule, contextPadModule, TokenSimulationModule],
       moddleExtensions: { bc },
     }) as unknown as ModelerType;
