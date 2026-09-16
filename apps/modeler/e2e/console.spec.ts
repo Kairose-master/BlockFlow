@@ -42,10 +42,10 @@ test("경비 승인: 배포 → 새 건 → 신청·승인·지급·영수증 �
   await page.getByTestId("complete-submit").click();
   await expect(page.getByTestId("task-done")).toContainText("다음 담당자 차례");
 
-  // 이팀장: 승인
+  // 이팀장: 승인 — 예/아니오 기본값("예")을 그대로 둔 채 완료 (기본값이 전송되는지 확인)
   await selectUser(page, "이팀장");
   await expect(page.getByTestId("todo-card")).toHaveCount(1, { timeout: 15_000 });
-  await page.getByTestId("field-approved").selectOption("true");
+  await expect(page.getByTestId("field-approved")).toHaveValue("true");
   await page.getByTestId("complete-approve").click();
   await expect(page.getByTestId("task-done")).toBeVisible();
 
