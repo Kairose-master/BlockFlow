@@ -33,6 +33,17 @@ describe("codegen 스냅샷", () => {
     });
   }
 
+  // 이식성: 구버전 EVM(paris = PUSH0 없음, shanghai) 을 쓰는 컨소시엄 체인(FISCO BCOS 3.7 LTS 등)에서도 컴파일된다
+  for (const evm of ["paris", "shanghai"] as const) {
+    it(`모든 예시가 evmVersion=${evm} 로도 경고 0 으로 컴파일된다`, () => {
+      for (const file of exampleFiles()) {
+        const ir = loadExample(file);
+        const c = compile(generate(ir), ir.process.id, evm);
+        expect(c.diagnostics, `${file} @ ${evm}`).toEqual([]);
+      }
+    });
+  }
+
   it("ExpenseApproval 바이트코드 크기가 가이드 6.6 (3,960 B) 과 같다", () => {
     const c = compile(readContract("ExpenseApproval"), "ExpenseApproval");
     expect((c.bytecode.length - 2) / 2).toBe(3960);

@@ -4,3 +4,4 @@ export { buildUnsignedTx, buildTxPackage, describe, type UnsignedTx, type TxPack
 export { LocalEvmAdapter, localSigner, type LocalSigner } from "./local";
 export { Indexer, type InstanceState, type TimelineEntry, type ProcessRecord, type IndexerSnapshot } from "./indexer";
 export { ViemAdapter, type ViemSigner, type ViemAdapterOptions } from "./viem";
+export { probeRpc, describeProbe, type ProbeResult } from "./probe";

@@ -15,7 +15,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { IR } from "@blockflow/ir";
 import {
   type Address, type CompiledProcess, Indexer, type IndexerSnapshot, LocalEvmAdapter, localSigner, type ProcessAdapter, type Signer,
-  SimulationFailed, translateError, ViemAdapter, type ViemSigner,
+  SimulationFailed, translateError, ViemAdapter, type ViemSigner, probeRpc, describeProbe,
 } from "@blockflow/runtime";
 
 export interface DemoUser {
@@ -61,6 +61,8 @@ export class Engine {
   readonly users: DemoUser[];
   readonly processes = new Map<Address, DeployedProcess>();
   readonly indexer: Indexer;
+  /** rpc 모드 기동 시 RPC 점검 결과 (사람이 읽는 줄) */
+  probe: string[] = [];
   private constructor(readonly adapter: ProcessAdapter, mode: "local" | "rpc", users: DemoUser[], private readonly statePath?: string) {
     this.mode = mode;
     this.users = users;
@@ -90,6 +92,15 @@ export class Engine {
     const statePath = process.env.BLOCKFLOW_STATE ?? join(process.cwd(), ".blockflow", "state.json");
     const engine = new Engine(adapter, "rpc", users, statePath);
     engine.load();
+    // 붙기 전에 RPC 호환성을 점검한다 (FISCO BCOS 는 Ethereum 호환 레인이어야 eth_* 가 있다). 실패해도 기동은 한다.
+    try {
+      const p = await probeRpc(rpcUrl);
+      engine.probe = describeProbe(p);
+      for (const line of engine.probe) console[p.ok ? "log" : "warn"](`[blockflow] RPC ${line}`);
+      if (p.chainId !== undefined && p.chainId !== chainId) console.warn(`[blockflow] BLOCKFLOW_CHAIN_ID=${chainId} 인데 노드는 ${p.chainId} 를 돌려줍니다`);
+    } catch (e) {
+      console.warn(`[blockflow] RPC 점검 실패: ${(e as Error).message}`);
+    }
     return engine;
   }
 

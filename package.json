@@ -17,6 +17,7 @@
     "gen:examples": "tsx packages/bpmn/src/cli.ts all packages/bpmn/examples contracts/src contracts/test/generated",
     "lint:bpmn": "for f in packages/bpmn/examples/*.bpmn; do tsx packages/bpmn/src/cli.ts lint \"$f\" || exit 1; done",
     "check:sound": "tsx packages/validator/src/cli.ts packages/ir/examples/*.json",
+    "chain:probe": "tsx packages/runtime/src/cli.ts",
     "modeler": "pnpm --filter @blockflow/modeler dev",
     "modeler:build": "pnpm --filter @blockflow/modeler build",
     "modeler:e2e": "pnpm --filter @blockflow/modeler e2e"

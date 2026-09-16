@@ -19,7 +19,7 @@ interface Example {
 }
 
 type CompileResult =
-  | { ok: true; sol: string; bytecodeBytes: number; solcVersion: string; states: number; paths: { description: string; outcome: string }[]; ir: { process: { id: string; name: string }; roles: { label: string }[]; flows: unknown[]; nodes: { kind: string }[] } }
+  | { ok: true; sol: string; abi: unknown[]; bytecode: string; bytecodeBytes: number; solcVersion: string; evmVersion: string; states: number; paths: { description: string; outcome: string }[]; ir: { process: { id: string; name: string }; roles: { key: string; label: string }[]; flows: unknown[]; nodes: { kind: string }[] } }
   | { ok: false; stage: string; diagnostics?: Diagnostic[]; problems?: (string | { message: string })[]; message?: string; sol?: string };
 
 const OVERLAY_TYPE = "bf-diag";
@@ -202,6 +202,33 @@ export function Modeler() {
     }
   };
 
+  /**
+   * 배포 번들: 도구 밖에서 배포할 때 (FISCO BCOS 콘솔/WeBASE, Remix, 다중서명 지갑). 소스·ABI·바이트코드·안내문을 한 JSON 으로.
+   * 국밀(SM2) 체인이나 eth_* RPC 가 없는 노드는 이 경로를 쓴다.
+   */
+  const downloadBundle = () => {
+    if (!result?.ok) return;
+    const id = result.ir.process.id;
+    const roles = result.ir.roles.map((r) => `${r.key}(${r.label})`).join(", ");
+    const readme = [
+      `# ${result.ir.process.name} (${id}) 배포 번들`,
+      "",
+      `- 컴파일: solc ${result.solcVersion.split("+")[0]}, optimizer 200, evmVersion ${result.evmVersion}. 의존성 없음(단일 파일).`,
+      `- 생성자 인자: owner(address) — 프로세스 소유자. 배포 후 createInstance(address[${result.ir.roles.length}]) 의 역할 순서: ${roles}.`,
+      "",
+      "## FISCO BCOS (콘솔)",
+      "```",
+      `deploy ${id} <ownerAddress>`,
+      `call ${id} <contractAddress> createInstance [<addr1>,<addr2>,...]`,
+      "```",
+      "WeBASE 합约 IDE 에서는 sol 을 붙여 넣어 컴파일·배포하면 됩니다. Ethereum 호환 레인(executor_version ≥ 2)이면 BLOCKFLOW_RPC_URL 로 이 도구가 직접 배포할 수도 있어요.",
+      "",
+      "## Remix / 기타 EVM",
+      "sol 을 열고 같은 컴파일 설정으로 배포하거나, abi + bytecode 로 바로 배포합니다.",
+    ].join("\n");
+    download(`${id}.bundle.json`, JSON.stringify({ name: id, sol: result.sol, abi: result.abi, bytecode: result.bytecode, solc: result.solcVersion, evmVersion: result.evmVersion, readme }, null, 2), "application/json");
+  };
+
   /** C1 배포: 컴파일이 성공한 현재 다이어그램을 체인에 올리고 보드로 이동한다. */
   const deploy = async () => {
     const m = modelerRef.current;
@@ -298,7 +325,7 @@ export function Modeler() {
           <div className="flex items-center gap-3 px-3 py-2 text-sm border-b border-gray-100">
             <span data-testid="compile-status" className={result.ok ? "text-green-700" : "text-red-700"}>
               {result.ok
-                ? `컴파일 성공 — ${result.ir.process.name} (${result.ir.process.id}), solc ${result.solcVersion.split("+")[0]}, 바이트코드 ${result.bytecodeBytes.toLocaleString()} B, 경고 0`
+                ? `컴파일 성공 — ${result.ir.process.name} (${result.ir.process.id}), solc ${result.solcVersion.split("+")[0]} (${result.evmVersion}), 바이트코드 ${result.bytecodeBytes.toLocaleString()} B, 경고 0`
                 : result.stage === "rules"
                   ? "다이어그램을 먼저 고쳐 주세요 (검사 결과 참고)"
                   : result.stage === "soundness"
@@ -311,6 +338,7 @@ export function Modeler() {
                 <button className={`btn ${tab === "summary" ? "bg-gray-100" : ""}`} onClick={() => setTab("summary")}>요약</button>
                 <button className={`btn ${tab === "sol" ? "bg-gray-100" : ""}`} onClick={() => setTab("sol")} data-testid="tab-sol">Solidity</button>
                 <button className="btn" onClick={() => download(`${result.ir.process.id}.sol`, result.sol, "text/plain")}>.sol 내려받기</button>
+                <button className="btn" onClick={downloadBundle} data-testid="bundle" title="소스+ABI+바이트코드+안내문. FISCO BCOS 콘솔/WeBASE, Remix, 다중서명 지갑에서 배포할 때">배포 번들</button>
                 <button className="btn btn-primary" onClick={() => void deploy()} disabled={deploying} data-testid="deploy">{deploying ? "배포 중…" : "배포하기"}</button>
                 {deployError && <span className="text-red-600" data-testid="deploy-error">{deployError}</span>}
               </>

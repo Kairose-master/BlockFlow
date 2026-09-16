@@ -13,12 +13,18 @@ interface SolcOut {
   contracts?: Record<string, Record<string, { abi: Abi; evm: { bytecode: { object: string } } }>>;
 }
 
+/** 배포 대상 EVM 버전 (BLOCKFLOW_EVM_VERSION). 기본 cancun. FISCO BCOS 3.7 LTS 같은 구버전 노드는 paris/shanghai. */
+export function targetEvmVersion(): "paris" | "shanghai" | "cancun" {
+  const v = process.env.BLOCKFLOW_EVM_VERSION;
+  return v === "paris" || v === "shanghai" ? v : "cancun";
+}
+
 export function compileSolidity(name: string, source: string) {
   const solc = require("solc") as { compile: (input: string) => string; version: () => string };
   const input = {
     language: "Solidity",
     sources: { [`${name}.sol`]: { content: source } },
-    settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: "cancun", outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } },
+    settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: targetEvmVersion(), outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } },
   };
   const out = JSON.parse(solc.compile(JSON.stringify(input))) as SolcOut;
   const diagnostics = (out.errors ?? []).map((e) => `${e.severity}: ${e.formattedMessage}`);
@@ -29,7 +35,7 @@ export function compileSolidity(name: string, source: string) {
 export type CompileOutcome =
   | { ok: false; stage: "rules"; diagnostics: Diagnostic[] }
   | { ok: false; stage: "structure" | "soundness" | "solc"; problems: { message: string; node?: string; kind?: string }[]; states?: number; sol?: string }
-  | { ok: true; ir: IR; sol: string; abi: Abi; bytecode: `0x${string}`; bytecodeBytes: number; solcVersion: string; states: number; paths: { description: string; outcome: string }[]; warnings: string[] };
+  | { ok: true; ir: IR; sol: string; abi: Abi; bytecode: `0x${string}`; bytecodeBytes: number; solcVersion: string; evmVersion: string; states: number; paths: { description: string; outcome: string }[]; warnings: string[] };
 
 export async function compileBpmn(xml: string): Promise<CompileOutcome> {
   const diagnostics = await lintBpmn(xml);
@@ -43,5 +49,5 @@ export async function compileBpmn(xml: string): Promise<CompileOutcome> {
   const solc = compileSolidity(ir.process.id, sol);
   if (solc.diagnostics.length || !solc.bytecode) return { ok: false, stage: "solc", problems: solc.diagnostics.map((message) => ({ message })), sol };
   const plans = planScenarios(ir);
-  return { ok: true, ir, sol, abi: solc.abi, bytecode: solc.bytecode, bytecodeBytes: (solc.bytecode.length - 2) / 2, solcVersion: solc.solcVersion, states: sound.states, paths: plans.map((p) => ({ description: p.description, outcome: p.outcome })), warnings };
+  return { ok: true, ir, sol, abi: solc.abi, bytecode: solc.bytecode, bytecodeBytes: (solc.bytecode.length - 2) / 2, solcVersion: solc.solcVersion, evmVersion: targetEvmVersion(), states: sound.states, paths: plans.map((p) => ({ description: p.description, outcome: p.outcome })), warnings };
 }

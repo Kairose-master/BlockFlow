@@ -60,7 +60,12 @@ pnpm modeler   # http://localhost:3000
 pnpm modeler                                   # 로컬 체인 모드 (설치·키 없이 바로)
 pnpm --filter @blockflow/devnode node          # Hardhat 3 JSON-RPC 노드 (다른 터미널)
 BLOCKFLOW_RPC_URL=http://127.0.0.1:8545 pnpm modeler   # 실제 JSON-RPC 모드 (chainId 31337 이면 Hardhat 키 자동)
+pnpm chain:probe http://127.0.0.1:8545       # 붙이기 전에 eth_* 호환성·EVM 버전(PUSH0)·수수료 모델 점검
+BLOCKFLOW_EVM_VERSION=paris pnpm modeler       # 구버전 EVM 노드용 컴파일 (기본 cancun)
 ```
+
+배포 대상: 로컬(설치 없음) · Hardhat · Base/Kaia 같은 EVM 체인 · **FISCO BCOS** (3.17 Ethereum 호환 레인이면 RPC 로 직접,
+국밀/구버전 노드면 모델러의 "배포 번들"을 콘솔/WeBASE 로). `docs/DESIGN.md` 9장 경로 C.
 
 `packages/runtime` 의 쓰기는 항상 시뮬레이션 → 성공한 호출만 전송하고, 커스텀 에러는 비전문가 문장으로 번역한다 (8.4).
 소유자 제어는 Safe Transaction Builder 호환 "서명 없는 트랜잭션 패키지" 로 내보낼 수 있다. CI 에 Slither 정적 분석(V3).

@@ -14,6 +14,7 @@ pnpm bpmn compile <file.bpmn>     # BPMN → Solidity (stdout)
 cd contracts && forge test -vv    # Foundry 가 있을 때 (CI 가 항상 실행)
 pnpm modeler                      # 앱 개발 서버 (apps/modeler, http://localhost:3000) — 로컬 체인 모드
 pnpm --filter @blockflow/devnode node   # Hardhat 3 노드; BLOCKFLOW_RPC_URL=http://127.0.0.1:8545 로 rpc 모드
+pnpm chain:probe <rpcUrl>         # 새 체인(FISCO BCOS 등)에 붙이기 전 eth_* 호환성 점검
 pnpm modeler:build && PW_CHROMIUM=/path/to/chrome pnpm modeler:e2e   # Playwright E2E
 ```
 

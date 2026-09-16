@@ -86,3 +86,17 @@ test("초안은 자동 저장되어 새로고침 후 복원되고, 새로 만들
   await expect(page.getByTestId("restored-notice")).toHaveCount(0);
   await expect(page.locator('.djs-element[data-element-id^="Lane_"]')).toHaveCount(1);
 });
+
+test("컴파일 결과에서 배포 번들(소스+ABI+바이트코드+안내)을 내려받을 수 있다", async ({ page }) => {
+  await openExample(page, "expense-approval");
+  await page.getByTestId("compile").click();
+  await expect(page.getByTestId("compile-status")).toContainText("컴파일 성공", { timeout: 30_000 });
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("bundle").click()]);
+  expect(download.suggestedFilename()).toBe("ExpenseApproval.bundle.json");
+  const path = await download.path();
+  const bundle = JSON.parse(require("node:fs").readFileSync(path!, "utf8"));
+  expect(bundle.sol).toContain("contract ExpenseApproval");
+  expect(bundle.bytecode).toMatch(/^0x[0-9a-f]+$/);
+  expect(Array.isArray(bundle.abi)).toBe(true);
+  expect(bundle.readme).toContain("FISCO BCOS");
+});

@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 export function GET() {
   return handle(async () => {
     const e = await getEngine();
-    return json({ mode: e.mode, chainId: e.adapter.chainId, owner: e.owner.address, users: e.users.map((u) => ({ address: u.address, label: u.label })) });
+    return json({ mode: e.mode, chainId: e.adapter.chainId, owner: e.owner.address, probe: e.probe, users: e.users.map((u) => ({ address: u.address, label: u.label })) });
   });
 }

@@ -20,8 +20,11 @@ export function solcVersion(): string {
   return solc.version();
 }
 
-export function compile(source: string, contractName: string): Compiled {
-  const key = `${contractName}\0${source}`;
+/** 배포 대상 체인의 EVM 버전. 가이드 기본은 cancun; FISCO BCOS 3.7 LTS 등 구버전 노드는 paris/shanghai 로 내린다. */
+export type EvmVersion = "paris" | "shanghai" | "cancun";
+
+export function compile(source: string, contractName: string, evmVersion: EvmVersion = "cancun"): Compiled {
+  const key = `${contractName}\0${evmVersion}\0${source}`;
   const hit = cache.get(key);
   if (hit) return hit;
 
@@ -30,7 +33,7 @@ export function compile(source: string, contractName: string): Compiled {
     sources: { [`${contractName}.sol`]: { content: source } },
     settings: {
       optimizer: { enabled: true, runs: 200 },
-      evmVersion: "cancun",
+      evmVersion,
       outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", "evm.deployedBytecode.object"] } },
     },
   };
