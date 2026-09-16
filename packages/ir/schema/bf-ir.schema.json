@@ -141,6 +141,9 @@
             "type": "string",
             "minLength": 1,
             "description": "원본 BPMN 요소 id (UI 매핑용)"
+          },
+          "timer": {
+            "type": "boolean"
           }
         },
         "not": {
@@ -387,6 +390,53 @@
             },
             "amountVar": {
               "$ref": "#/$defs/identifier"
+            }
+          }
+        },
+        "timer": {
+          "type": "object",
+          "required": [
+            "deadline",
+            "out"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "deadline": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "var"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "var": {
+                      "$ref": "#/$defs/identifier"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "seconds"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "seconds": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              ]
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1
+            },
+            "bpmnId": {
+              "type": "string",
+              "minLength": 1
             }
           }
         }

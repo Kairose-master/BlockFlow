@@ -72,6 +72,13 @@ EVM 체인 (Base Sepolia → Base) 또는 Kaia Kairos → Kaia : ProcessContract
 - 예시 BPMN(DI 없음)은 `packages/bpmn/src/layout.ts` 가 레인 인식 자동 배치로 좌표를 붙여 연다.
 - 컴파일은 서버 라우트(`/api/compile`)에서 규칙 → IR → soundness → Solidity → solc 0.8.37 을 실행한다. 브라우저에는 파서·규칙만 번들된다.
 
+### 타이머 구현 메모
+
+컨트랙트에 `startedAt[id][taskId]` 를 두고 `_fire`/`_expire`/`createInstance` 끝의 `_stamp()` 가 타이머 태스크의 입력 플로우에 토큰이 새로 놓이면 `block.timestamp` 를 기록한다.
+`expire{Task}(id)` 는 `_require` 로 활성 여부를 확인한 뒤 기한을 검사하고 `_expire()` 로 토큰을 만료 경로에 옮긴다 (`TaskExpired` 이벤트).
+soundness 검사는 만료를 비결정적 전이로 추가하고, 시나리오 생성기는 시뮬레이션 시계(단계마다 +10초, 만료는 기한 시각으로 warp)를 갖는다.
+L0 프로세스의 생성물은 바뀌지 않는다 (타이머가 없으면 관련 코드가 나오지 않는다).
+
 ### 확장 속성 (moddle 네임스페이스 `bc`, 부록 A = `packages/bpmn/moddle/bc.json`)
 
 | 대상 | 속성 | 의미 |
@@ -80,6 +87,7 @@ EVM 체인 (Base Sepolia → Base) 또는 Kaia Kairos → Kaia : ProcessContract
 | `bpmn:Lane` | `bc:roleKey`, `bc:bindingMode` (`static | ownerRebind | open`) | 역할 상수 이름, 바인딩 방식 |
 | `bpmn:UserTask` | `bc:inputs`, `bc:taskId` | 완료 시 입력값 → 함수 인자 + form-js 필드; 이벤트/UI 용 정수 ID |
 | `bpmn:UserTask` (L1) | `bc:payToken`, `bc:payTo`, `bc:payAmountVar` | 결제 태스크: 완료 시 `IERC20(token).transferFrom(msg.sender, to, amount)` — **구현됨** |
+| `bpmn:BoundaryEvent` (timer, L1) | `bc:deadlineVar` 또는 `bc:deadlineSeconds` | `block.timestamp >= startedAt + deadline` 이면 누구나 `expire{Task}(id)`; 토큰이 만료 경로로 — **구현됨** |
 | `bpmn:SequenceFlow` | `conditionExpression` (bc:expr) | 4.4 DSL |
 | `bpmn:ExclusiveGateway` | `default` | 기본 플로우 필수 (토큰 소실 방지) |
 

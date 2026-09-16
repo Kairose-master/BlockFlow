@@ -168,15 +168,24 @@ contract {{contractName}}Scenarios is Test {
 
     /// 경로 {{index}}: {{description}} → {{outcome}}
     function test_path_{{index}}() public {
+{{#hasTimer}}
+        vm.warp(1700000000);
+{{/hasTimer}}
         uint256 id = _create();
         uint256 m;
         bool ended;
 {{#steps}}
 {{#negatives}}
+{{#warp}}
+        vm.warp({{warp}});
+{{/warp}}
         vm.prank({{actor}});
         vm.expectRevert(abi.encodeWithSelector({{contractName}}.{{error}}.selector{{errorArgs}}));
         p.{{fn}}(id{{args}});
 {{/negatives}}
+{{#hasTimer}}
+        vm.warp({{time}});
+{{/hasTimer}}
         vm.prank({{actor}});
         p.{{fn}}(id{{args}});
         (m, ended) = _marking(id);

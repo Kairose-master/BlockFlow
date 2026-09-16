@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  휴가 신청 (L1 타이머 경계 이벤트). 레인: 직원 / 팀장.
+  [시작] → (직원) 휴가 신청{days, replyWithin} → (팀장) 승인{approved} ─⏰ replyWithin 초 지나면 → [종료:자동 승인(만료)]
+                                                        → ◇ approved? ─yes→ [종료:승인]   default → [종료:거절]
+  bc:deadlineVar 는 uint256(초) 변수. 기한이 지나면 누구나 expireApprove(id) 를 호출할 수 있다.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_LeaveRequest" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="LeaveRequest" name="휴가 신청" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="leaveDays" type="uint256"/>
+        <bc:variable name="replyWithin" type="uint256"/>
+        <bc:variable name="approved" type="bool"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Employee" name="직원" bc:roleKey="Employee">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Request</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Manager" name="팀장" bc:roleKey="Manager">
+        <bpmn:flowNodeRef>Task_Approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Timer_Reply</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Expired</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Request" name="휴가 신청" bc:fn="request">
+      <bpmn:extensionElements>
+        <bc:inputs>
+          <bc:input variable="leaveDays" label="일수"/>
+          <bc:input variable="replyWithin" label="답변 기한(초)"/>
+        </bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Approve" name="승인" bc:fn="approve">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="approved" label="승인 여부"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:boundaryEvent id="Timer_Reply" name="기한 경과" attachedToRef="Task_Approve" bc:deadlineVar="replyWithin">
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_1"/>
+    </bpmn:boundaryEvent>
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="승인?" default="Flow_5">
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Approved" name="승인됨"><bpmn:incoming>Flow_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="거절" bc:outcome="rejected"><bpmn:incoming>Flow_5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Expired" name="기한 만료" bc:outcome="expired"><bpmn:incoming>Flow_6</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Request"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Request" targetRef="Task_Approve"/>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_Approve" targetRef="Gateway_Approved"/>
+    <bpmn:sequenceFlow id="Flow_4" name="예" sourceRef="Gateway_Approved" targetRef="End_Approved">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">approved</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_5" name="아니오" sourceRef="Gateway_Approved" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Timer_Reply" targetRef="End_Expired"/>
+  </bpmn:process>
+</bpmn:definitions>

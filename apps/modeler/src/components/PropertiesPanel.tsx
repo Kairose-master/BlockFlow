@@ -30,6 +30,8 @@ export function PropertiesPanel({ modeler, element, version }: { modeler: Modele
       return <FlowForm modeler={modeler} flow={element} process={process} />;
     case "bpmn:EndEvent":
       return <EndForm modeler={modeler} end={element} />;
+    case "bpmn:BoundaryEvent":
+      return <TimerForm modeler={modeler} timer={element} process={process} />;
     case "bpmn:ExclusiveGateway":
     case "bpmn:ParallelGateway":
     case "bpmn:StartEvent":
@@ -302,6 +304,45 @@ function EndForm({ modeler, end }: { modeler: Modeler; end: Shape }) {
       {outcome !== "completed" && (
         <Field label="결과 식별자 (영문)">
           <input className={input} value={outcome} onChange={(e) => setProps(modeler, end, { "bc:outcome": e.target.value })} />
+        </Field>
+      )}
+    </div>
+  );
+}
+
+/** L1 타이머 경계 이벤트: 기한(변수 또는 초). 기한이 지나면 누구나 만료 처리할 수 있다. */
+function TimerForm({ modeler, timer, process }: { modeler: Modeler; timer: Shape; process: any }) {
+  const bo = timer.businessObject;
+  const host = timer.host?.businessObject;
+  const uintVars = getVariables(process).filter((v) => v.type === "uint256");
+  const dv: string = bo.get("bc:deadlineVar") ?? "";
+  const ds: number | undefined = bo.get("bc:deadlineSeconds");
+  const mode = dv ? "var" : "seconds";
+  return (
+    <div>
+      <h3 className="font-semibold mb-2">기한 (타이머)</h3>
+      <p className="text-xs text-gray-500 mb-3">{host ? `[${host.name ?? host.id}] 이 기한 안에 끝나지 않으면 기한 화살표로 진행해요. 기한이 지나면 누구나 "만료 처리" 할 수 있어요.` : "할 일 위에 놓아 주세요."}</p>
+      <Field label="이름">
+        <input className={input} value={bo.name ?? ""} onChange={(e) => setProps(modeler, timer, { name: e.target.value })} />
+      </Field>
+      <Field label="기한 정하는 방법">
+        <select className={input} value={mode} data-testid="timer-mode"
+          onChange={(e) => (e.target.value === "var"
+            ? setProps(modeler, timer, { "bc:deadlineVar": uintVars[0]?.name ?? "", "bc:deadlineSeconds": undefined })
+            : setProps(modeler, timer, { "bc:deadlineVar": undefined, "bc:deadlineSeconds": ds ?? 86400 }))}>
+          <option value="seconds">고정 (초)</option>
+          <option value="var">값에서 (앞 단계에서 입력)</option>
+        </select>
+      </Field>
+      {mode === "var" ? (
+        <Field label="기한으로 쓸 값 (초)" hint="uint256 값만 고를 수 있어요">
+          <select className={input} value={dv} data-testid="timer-var" onChange={(e) => setProps(modeler, timer, { "bc:deadlineVar": e.target.value })}>
+            {uintVars.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
+          </select>
+        </Field>
+      ) : (
+        <Field label="기한 (초)" hint="예: 하루 = 86400">
+          <input className={input} type="number" min={1} value={ds ?? ""} data-testid="timer-seconds" onChange={(e) => setProps(modeler, timer, { "bc:deadlineSeconds": e.target.value ? Number(e.target.value) : undefined })} />
         </Field>
       )}
     </div>

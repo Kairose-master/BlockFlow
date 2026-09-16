@@ -47,6 +47,8 @@ export interface Flow {
   cond?: string;
   /** XOR 분기의 기본 플로우. */
   default?: boolean;
+  /** 타이머 경계 이벤트에서 나가는 만료 경로 (from 은 태스크 노드) */
+  timer?: boolean;
   /** 원본 bpmn:SequenceFlow id (UI 가 다이어그램에 marking 을 칠할 때 사용). */
   bpmnId?: string;
 }
@@ -87,6 +89,17 @@ export interface Payment {
   amountVar: string;
 }
 
+/**
+ * L1 타이머 경계 이벤트 (4.3 bc:deadlineVar): 태스크가 활성화된 시각(startedAt) + 기한이 지나면 누구나
+ * expire{Task}(id) 를 호출해 태스크 토큰을 만료 경로(out)로 옮길 수 있다. 기한은 변수(초) 또는 리터럴(초).
+ */
+export interface Timer {
+  deadline: { var: string } | { seconds: number };
+  /** 만료 경로 플로우 (from = 이 태스크, timer: true) */
+  out: string;
+  bpmnId?: string;
+}
+
 export interface UserTaskNode {
   id: string;
   kind: "userTask";
@@ -106,6 +119,8 @@ export interface UserTaskNode {
   tag?: string;
   /** L1 결제 태스크 */
   payment?: Payment;
+  /** L1 타이머 경계 이벤트 */
+  timer?: Timer;
 }
 
 export interface XorBranch {
@@ -197,13 +212,15 @@ export function inFlows(n: Node): string[] {
   return n.kind === "startEvent" ? [] : n.in;
 }
 
-/** 노드의 출력 플로우 목록 (xorSplit 은 branches + default, endEvent 는 없음). */
+/** 노드의 출력 플로우 목록 (xorSplit 은 branches + default, userTask 는 out + 타이머 만료 경로, endEvent 는 없음). */
 export function outFlows(n: Node): string[] {
   switch (n.kind) {
     case "endEvent":
       return [];
     case "xorSplit":
       return [...n.branches.map((b) => b.flow), n.default];
+    case "userTask":
+      return n.timer ? [...n.out, n.timer.out] : n.out;
     default:
       return n.out;
   }

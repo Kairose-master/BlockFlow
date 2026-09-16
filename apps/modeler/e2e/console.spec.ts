@@ -126,3 +126,42 @@ test("C6 버전 교체: 같은 프로세스를 다시 배포하면 새 버전이
   await expect(page.getByTestId("board-version")).toHaveText("v1");
   await expect(page.getByTestId("new-instance")).toBeDisabled();
 });
+
+test("L1 타이머: 기한이 지나면 누구나 만료 처리할 수 있다 (로컬 체인 시간 건너뛰기)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await expect(page.getByTestId("user-select")).toBeVisible();
+  await selectUser(page, "운영자 (소유자)");
+  await page.getByTestId("example-select").selectOption("leave-request");
+  await expect(page.locator('[data-element-id="Task_Request"]')).toBeVisible();
+  await page.getByTestId("compile").click();
+  await expect(page.getByTestId("compile-status")).toContainText("컴파일 성공", { timeout: 30_000 });
+  await page.getByTestId("deploy").click();
+  await expect(page).toHaveURL(/\/processes\/0x/, { timeout: 30_000 });
+  const boardUrl = page.url();
+  await page.getByTestId("new-instance").click();
+  await page.getByTestId("role-Employee").selectOption({ label: "김신청" });
+  await page.getByTestId("role-Manager").selectOption({ label: "이팀장" });
+  await page.getByTestId("create-confirm").click();
+  await expect(page.getByTestId("instance-1")).toBeVisible();
+
+  // 직원: 3일, 답변 기한 3600초
+  await selectUser(page, "김신청");
+  await page.goto("/todo");
+  await expect(page.getByTestId("todo-card")).toHaveCount(1);
+  await page.getByTestId("field-leaveDays").fill("3");
+  await page.getByTestId("field-replyWithin").fill("3600");
+  await page.getByTestId("complete-request").click();
+  await expect(page.getByTestId("task-done")).toBeVisible();
+
+  // 보드: 기한 남음 → 시간 건너뛰기 → 만료 처리 → 기한 만료 종료
+  await selectUser(page, "운영자 (소유자)");
+  await page.goto(boardUrl);
+  await expect(page.getByTestId("timers")).toContainText("남음", { timeout: 15_000 });
+  await expect(page.getByTestId("expire-approve")).toHaveCount(0);
+  await page.getByTestId("skip-1h").click();
+  await expect(page.getByTestId("expire-approve")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId("expire-approve").click();
+  await expect(page.getByTestId("instance-status")).toContainText("중단", { timeout: 15_000 });
+  await expect(page.getByTestId("task-done")).toContainText("만료 처리");
+});

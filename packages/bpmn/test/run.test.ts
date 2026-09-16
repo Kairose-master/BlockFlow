@@ -53,12 +53,29 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
   const gas: Record<string, bigint[]> = {};
 
   for (const plan of plans) {
+    h.warp(1_700_000_000);
     const created = await h.call(owner, address, "createInstance", [roleAccounts.map((a) => a.hex)]);
     expect(created.ok, created.error).toBe(true);
     const id = BigInt(plan.index);
     const vars: Record<string, unknown> = {};
     for (const s of plan.steps) {
       Object.assign(vars, s.args);
+      if (s.kind === "expire") {
+        const fn = `expire${s.task.name.charAt(0).toUpperCase()}${s.task.name.slice(1)}`;
+        if ((s.deadlineSeconds ?? 0) > 0) {
+          h.warp(s.time - 1);
+          const early = await h.call(stranger, address, fn, [id]);
+          expect(early.error).toBe(`NotExpired(${id},${s.task.taskId})`);
+        }
+        h.warp(s.time);
+        const r = await h.call(stranger, address, fn, [id]);
+        expect(r.ok, `${plan.description}: ${fn} → ${r.error}`).toBe(true);
+        expect(r.events).toContain(`TaskExpired(${id},${s.task.taskId})`);
+        expect(r.events).toContain(`MarkingChanged(${id},${s.markingAfter})`);
+        if (s.endedAfter) expect(r.events).toContain(`InstanceEnded(${id},${s.outcomeAfter === "completed"})`);
+        continue;
+      }
+      h.warp(s.time);
       const args = s.task.inputs.map((i) => toArg(s.args[i.variable]!));
       // 권한 없는 실행
       const bad = await h.call(stranger, address, s.task.name, [id, ...args]);

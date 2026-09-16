@@ -5,6 +5,7 @@ import { Common, Hardfork, Mainnet } from "@ethereumjs/common";
 import { createLegacyTx } from "@ethereumjs/tx";
 import { Address, createAccount, createAddressFromPrivateKey, hexToBytes, bytesToHex } from "@ethereumjs/util";
 import { createVM, runTx, type VM } from "@ethereumjs/vm";
+import { createBlock } from "@ethereumjs/block";
 import { type Abi, decodeErrorResult, decodeEventLog, encodeDeployData, encodeFunctionData, getAddress } from "viem";
 
 export interface Account {
@@ -35,10 +36,19 @@ export function account(name: string, seed: number): Account {
 }
 
 export class Harness {
+  /** 다음 트랜잭션의 블록 시각 (초). warp() 로 바꾼다. 0 이면 기본 블록. */
+  time = 0;
+  private height = 0n;
+
   private constructor(
     readonly vm: VM,
     readonly abi: Abi,
   ) {}
+
+  /** block.timestamp 를 옮긴다 (Foundry 의 vm.warp) */
+  warp(seconds: number): void {
+    this.time = seconds;
+  }
 
   static readonly MOCK_ERC20_SOURCE = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
@@ -67,7 +77,11 @@ contract MockERC20 {
       { common },
     ).sign(from.pk);
     from.nonce += 1n;
-    const r = await runTx(this.vm, { tx });
+    this.height += 1n;
+    const block = this.time
+      ? createBlock({ header: { number: this.height, timestamp: BigInt(this.time), gasLimit: 30_000_000n, baseFeePerGas: 7n } }, { common })
+      : undefined;
+    const r = await runTx(this.vm, block ? { tx, block } : { tx });
     const err = r.execResult.exceptionError;
     const returnData = bytesToHex(r.execResult.returnValue) as `0x${string}`;
     const events = r.execResult.logs?.map((log) => this.formatEvent(log)) ?? [];

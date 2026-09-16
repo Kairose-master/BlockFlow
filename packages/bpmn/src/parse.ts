@@ -7,7 +7,7 @@
  * 진단(Diagnostic)은 비전문가용 한국어 메시지 + 요소 id 를 가진다. UI 는 id 로 요소에 빨간 배지를 붙인다.
  */
 import { BpmnModdle, type ModdleElement } from "bpmn-moddle";
-import type { EndEventNode, Flow, IR, Node, Payment, Role, TaskInput, UserTaskNode, VarType, Variable } from "@blockflow/ir";
+import type { EndEventNode, Flow, IR, Node, Payment, Role, TaskInput, Timer, UserTaskNode, VarType, Variable } from "@blockflow/ir";
 import { compileExpr, ExprError } from "@blockflow/codegen/expr";
 import * as names from "@blockflow/codegen/names";
 import BC from "../moddle/bc.json" with { type: "json" };
@@ -45,7 +45,7 @@ const VAR_TYPES = new Set<string>(["uint256", "int256", "bool", "address", "byte
 
 // ───────────── 그래프 (moddle 요소를 평탄화) ─────────────
 
-type Kind = "start" | "end" | "task" | "xor" | "and";
+type Kind = "start" | "end" | "task" | "xor" | "and" | "timer";
 
 interface GNode {
   id: string;
@@ -63,6 +63,10 @@ interface GNode {
   inputs: TaskInput[];
   /** L1 결제 (bc:payToken / bc:payTo / bc:payAmountVar) */
   pay?: { token: string; to: string; amountVar: string };
+  /** timer(경계 이벤트): 붙은 태스크 id, 기한 */
+  attachedTo?: string;
+  deadlineVar?: string;
+  deadlineSeconds?: number;
   /** end */
   outcome?: string;
 }
@@ -107,7 +111,7 @@ function extValues(el: ModdleElement, type: string): ModdleElement[] {
 
 const SUPPORTED = new Set([
   "bpmn:StartEvent", "bpmn:EndEvent", "bpmn:UserTask", "bpmn:ExclusiveGateway", "bpmn:ParallelGateway",
-  "bpmn:SequenceFlow", "bpmn:LaneSet", "bpmn:Lane",
+  "bpmn:SequenceFlow", "bpmn:LaneSet", "bpmn:Lane", "bpmn:BoundaryEvent",
 ]);
 
 const UNSUPPORTED_MESSAGES: Record<string, string> = {
@@ -120,7 +124,6 @@ const UNSUPPORTED_MESSAGES: Record<string, string> = {
   "bpmn:EventBasedGateway": "이벤트 게이트웨이는 L1 에서 지원돼요",
   "bpmn:IntermediateCatchEvent": "중간 이벤트(타이머·메시지)는 L1 에서 지원돼요",
   "bpmn:IntermediateThrowEvent": "중간 이벤트는 L1 에서 지원돼요",
-  "bpmn:BoundaryEvent": "경계 이벤트(타이머)는 L1 에서 지원돼요",
   "bpmn:SubProcess": "서브프로세스는 L2 에서 지원돼요",
   "bpmn:CallActivity": "콜 액티비티는 L2 에서 지원돼요",
   "bpmn:DataObjectReference": "데이터 객체 대신 프로세스 변수를 쓰세요",
@@ -154,6 +157,9 @@ function buildGraph(defs: ModdleElement, diags: Diagnostic[]): Graph | undefined
     const name = str(v.name);
     const type = str(v.type);
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) diags.push({ rule: "R12", message: `변수 이름 '${name}' 은 영문자로 시작하는 영숫자여야 해요`, elementId: processId });
+    else if (names.isReserved(name) || ["id", "m", "v", "inst", "bits", "roles", "roleAccounts", "i", "p", "consume", "produce", "taskId", "inFlow"].includes(name)) {
+      diags.push({ rule: "R12", message: `'${name}' 은 쓸 수 없는 이름이에요. 다른 이름을 붙여 주세요 (예: ${name}Value)`, elementId: processId });
+    }
     if (!VAR_TYPES.has(type)) diags.push({ rule: "R9", message: `변수 '${name}' 의 타입 '${type}' 은 쓸 수 없어요 (uint256, int256, bool, address, bytes32 중 하나)`, elementId: processId });
     if (variables.some((x) => x.name === name)) diags.push({ rule: "R12", message: `변수 '${name}' 이 두 번 선언됐어요`, elementId: processId });
     const variable: Variable = { name, type: type as VarType };
@@ -199,6 +205,20 @@ function buildGraph(defs: ModdleElement, diags: Diagnostic[]): Graph | undefined
         }
         const n: GNode = { ...base, kind: type === "bpmn:StartEvent" ? "start" : "end" };
         if (type === "bpmn:EndEvent") n.outcome = str(fe.get("bc:outcome")) || "completed";
+        nodes.set(id, n);
+        break;
+      }
+      case "bpmn:BoundaryEvent": {
+        const defs = arr(fe.eventDefinitions);
+        if (defs.length !== 1 || defs[0]!.$type !== "bpmn:TimerEventDefinition") {
+          diags.push({ rule: "L1", message: "경계 이벤트는 기한(타이머)만 지원해요", elementId: id });
+        }
+        const n: GNode = { ...base, kind: "timer", attachedTo: ref(fe.attachedToRef) };
+        const dv = str(fe.get("bc:deadlineVar"));
+        if (dv) n.deadlineVar = dv;
+        const ds = fe.get("bc:deadlineSeconds");
+        if (typeof ds === "number") n.deadlineSeconds = ds;
+        if (fe.cancelActivity === false) diags.push({ rule: "L1", message: "기한 이벤트는 태스크를 중단시키는(실선) 형태만 지원해요", elementId: id });
         nodes.set(id, n);
         break;
       }
@@ -323,6 +343,11 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
     succ.set(n.id, n.out.map((f) => g.flows.get(f)!.to));
     pred.set(n.id, n.in.map((f) => g.flows.get(f)!.from));
   }
+  // 타이머 경계 이벤트는 붙은 태스크에서 도달한다
+  for (const t of nodes.filter((n) => n.kind === "timer" && n.attachedTo)) {
+    succ.get(t.attachedTo!)?.push(t.id);
+    pred.get(t.id)?.push(t.attachedTo!);
+  }
   const reach = (from: string[], next: Map<string, string[]>) => {
     const seen = new Set<string>(from);
     const q = [...from];
@@ -379,6 +404,12 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
       }
     }
   }
+  for (const t of nodes.filter((n) => n.kind === "timer" && n.deadlineVar && n.attachedTo)) {
+    const host = g.nodes.get(t.attachedTo!);
+    if (host && g.variables.some((v) => v.name === t.deadlineVar) && !defIn.get(host.id)!.has(t.deadlineVar!)) {
+      push("R10", `[${labelOfVar(g, t.deadlineVar!)}]을 입력받기 전에 기한으로 쓰고 있어요`, t.id, `변수 ${t.deadlineVar}`);
+    }
+  }
   for (const t of nodes.filter((n) => n.kind === "task" && n.pay?.amountVar)) {
     const definedHere = new Set([...defIn.get(t.id)!, ...t.inputs.map((i) => i.variable)]);
     if (g.variables.some((v) => v.name === t.pay!.amountVar) && !definedHere.has(t.pay!.amountVar)) {
@@ -392,6 +423,22 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
         if (!defined.has(v)) push("R10", `[${labelOfVar(g, v)}]을 입력받기 전에 조건에서 쓰고 있어요`, fid, `변수 ${v}`);
       }
     }
+  }
+  // L1 타이머 경계 이벤트
+  for (const t of nodes.filter((n) => n.kind === "timer")) {
+    const host = t.attachedTo ? g.nodes.get(t.attachedTo) : undefined;
+    if (!host || host.kind !== "task") push("L1", "기한 이벤트는 할 일(사용자 태스크)에 붙여야 해요", t.id);
+    if (t.in.length) push("L1", "기한 이벤트로 들어오는 화살표는 없어야 해요", t.id);
+    if (t.out.length !== 1) push("L1", "기한이 지나면 어디로 갈지 화살표 하나를 그리세요", t.id);
+    if (host?.kind === "task" && nodes.some((o) => o.kind === "timer" && o !== t && o.attachedTo === host.id)) push("L1", "할 일 하나에는 기한 이벤트 하나만 붙일 수 있어요", t.id);
+    if (!t.deadlineVar && !t.deadlineSeconds) push("L1", "기한을 정하세요 (값 또는 초)", t.id);
+    if (t.deadlineVar) {
+      const v = g.variables.find((x) => x.name === t.deadlineVar);
+      if (!v) push("L1", `기한으로 쓸 값 '${t.deadlineVar}' 이 없어요`, t.id);
+      else if (v.type !== "uint256") push("L1", `기한 [${t.deadlineVar}] 은 0 이상의 숫자(초)여야 해요`, t.id);
+    }
+    if (t.deadlineSeconds !== undefined && t.deadlineSeconds < 1) push("L1", "기한은 1초 이상이어야 해요", t.id);
+    for (const fid of t.out) if (g.flows.get(fid)?.cond) push("R5", "기한 화살표에는 조건을 붙이지 않아요", fid);
   }
   // L1 결제 태스크
   const roleKeysAll = new Set(g.lanes.map((l, i) => roleKeyOf(l, i)));
@@ -456,6 +503,8 @@ function toIR(g: Graph): IR {
       case "and":
         irId.set(n.id, `A${++a}`);
         break;
+      case "timer":
+        break; // 붙은 태스크의 timer 로 흡수된다
       case "end": {
         const oc = n.outcome ?? "completed";
         const c = (outcomeCount.get(oc) ?? 0) + 1;
@@ -487,7 +536,10 @@ function toIR(g: Graph): IR {
   const flows: Flow[] = sortedFlows.map((f, i) => {
     const fid = `F${i + 1}`;
     flowIrId.set(f.id, fid);
-    const flow: Flow = { id: fid, bit: i, from: irId.get(f.from)!, to: irId.get(resolveTarget(f.to))!, bpmnId: f.id };
+    const fromNode = g.nodes.get(f.from)!;
+    const fromIr = fromNode.kind === "timer" ? irId.get(fromNode.attachedTo!)! : irId.get(f.from)!;
+    const flow: Flow = { id: fid, bit: i, from: fromIr, to: irId.get(resolveTarget(f.to))!, bpmnId: f.id };
+    if (fromNode.kind === "timer") flow.timer = true;
     const from = g.nodes.get(f.from)!;
     if (from.kind === "xor" && from.out.length >= 2) {
       if (from.defaultFlow === f.id) flow.default = true;
@@ -540,6 +592,11 @@ function toIR(g: Graph): IR {
         if (n.pay) {
           const to: Payment["to"] = /^0x[0-9a-fA-F]{40}$/.test(n.pay.to) ? { address: n.pay.to } : { role: n.pay.to };
           task.payment = { token: n.pay.token, to, amountVar: n.pay.amountVar };
+        }
+        const timer = docNodes.find((o) => o.kind === "timer" && o.attachedTo === n.id);
+        if (timer) {
+          const t: Timer = { deadline: timer.deadlineVar ? { var: timer.deadlineVar } : { seconds: timer.deadlineSeconds ?? 0 }, out: flowIrId.get(timer.out[0]!)!, bpmnId: timer.id };
+          task.timer = t;
         }
         nodes.push(task);
         break;

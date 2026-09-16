@@ -56,11 +56,13 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
   const roleVar = (key: string) => "acc" + key.replace(/[^A-Za-z0-9_]/g, "");
   const roleIndex = new Map(ir.roles.map((r, i) => [r.key, i]));
   const plans = opts.plans ?? planScenarios(ir);
+  const hasTimer = tasks.some((t) => !!t.timer);
 
   const tokens = [...new Set(tasks.filter((t) => t.payment).map((t) => getAddress(t.payment!.token)))];
   const ctx = {
     contractName: name,
     hasPayment: tokens.length > 0,
+    hasTimer,
     tokens: tokens.map((t) => ({ address: t })),
     importPath: opts.importPath ?? `../../src/${name}.sol`,
     roleCount: ir.roles.length,
@@ -88,9 +90,17 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
         description: p.description,
         outcome: p.outcome,
         steps: p.steps.map((s) => {
+          if (s.kind === "expire") {
+            const fn = `expire${s.task.name.charAt(0).toUpperCase()}${s.task.name.slice(1)}`;
+            return {
+              actor: "stranger", fn, args: "", time: s.time, markingAfter: hex(s.markingAfter), endedAfter: s.endedAfter, completed: s.outcomeAfter === "completed",
+              // 기한 1초 전에는 거부된다 (기한이 0 이면 즉시 만료 가능하므로 생략)
+              negatives: (s.deadlineSeconds ?? 0) > 0 ? [{ actor: "stranger", fn, args: "", error: "NotExpired", errorArgs: `, id, ${taskConstOf.get(s.task.id)}`, warp: s.time - 1 }] : [],
+            };
+          }
           const args = s.task.inputs.map((i) => `, ${solValue(s.args[i.variable]!, varType.get(i.variable)!)}`).join("");
           const actor = roleVar(s.task.role);
-          const negatives: { actor: string; fn: string; args: string; error: string; errorArgs: string }[] = [
+          const negatives: { actor: string; fn: string; args: string; error: string; errorArgs: string; warp?: number }[] = [
             { actor: "stranger", fn: s.task.name, args, error: "NotAuthorized", errorArgs: `, id, ${roleConst(s.task.role)}` },
           ];
           if (s.disabledTask) {
@@ -102,6 +112,7 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
             actor,
             fn: s.task.name,
             args,
+            time: s.time,
             markingAfter: hex(s.markingAfter),
             endedAfter: s.endedAfter,
             completed: s.outcomeAfter === "completed",

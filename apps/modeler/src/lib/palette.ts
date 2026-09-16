@@ -34,11 +34,18 @@ class BlockFlowPaletteProvider {
       "create.user-task": createAction("bpmn:UserTask", "activity", "bpmn-icon-user-task", "할 일 (사용자 태스크)"),
       "create.exclusive-gateway": createAction("bpmn:ExclusiveGateway", "gateway", "bpmn-icon-gateway-xor", "조건에 따라 갈라짐 (XOR)"),
       "create.parallel-gateway": createAction("bpmn:ParallelGateway", "gateway", "bpmn-icon-gateway-parallel", "동시에 진행 (AND)"),
+      "create.timer-boundary": {
+        group: "event", className: "bpmn-icon-intermediate-event-catch-timer", title: "기한 (할 일 위에 놓으세요)",
+        action: {
+          click: (event: unknown) => create.start(event, elementFactory.createShape({ type: "bpmn:BoundaryEvent", eventDefinitionType: "bpmn:TimerEventDefinition" })),
+          dragstart: (event: unknown) => create.start(event, elementFactory.createShape({ type: "bpmn:BoundaryEvent", eventDefinitionType: "bpmn:TimerEventDefinition" })),
+        },
+      },
     };
   }
 }
 
-export const ALLOWED_PALETTE_ENTRIES = 8;
+export const ALLOWED_PALETTE_ENTRIES = 9;
 
 const paletteModule = {
   __init__: ["paletteProvider"],

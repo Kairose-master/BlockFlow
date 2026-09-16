@@ -24,6 +24,9 @@ export interface TemplateContext {
   processName: string;
   /** L1 결제 태스크가 하나라도 있으면 IERC20 인터페이스·nonReentrant·PaymentFailed 를 낸다 */
   hasPayment: boolean;
+  /** L1 타이머가 하나라도 있으면 startedAt·_stamp·expire 함수·TaskExpired/NotExpired 를 낸다 */
+  hasTimer: boolean;
+  timers: TimerCtx[];
   roles: { line: string }[];
   roleCount: number;
   roleOrder: string;
@@ -36,6 +39,17 @@ export interface TemplateContext {
   enabled: { inMask: string; taskConst: string }[];
   /** 시작 이벤트가 토큰을 놓는 첫 플로우. */
   startFlow: string;
+}
+
+export interface TimerCtx {
+  doc: string;
+  /** expire 함수 이름 (expire + FnName) */
+  fn: string;
+  taskConst: string;
+  inMask: string;
+  outMask: string;
+  /** Solidity 식: vars[id].x 또는 리터럴 초 */
+  deadline: string;
 }
 
 export interface TaskCtx {
@@ -76,6 +90,7 @@ function flowFromLabel(ir: IR, flowId: string): string {
   const from = nodeById(ir, f.from);
   if (from.kind === "startEvent") return "Start";
   if (from.kind === "xorSplit") return `${from.id} [${f.default ? "default" : "yes"}]`;
+  if (f.timer) return `${from.id} [timeout]`;
   return from.id;
 }
 
@@ -209,6 +224,23 @@ export function buildContext(ir: IR): TemplateContext {
     steps.push({ comment: stepComment(n), inMask: mask(n.in), end: { completed: n.outcome === "completed" ? "true" : "false" } });
   }
 
+  // ── L1 타이머 ──
+  const timers: TimerCtx[] = tasks
+    .map((t, i) => ({ t, i }))
+    .filter(({ t }) => t.timer)
+    .map(({ t, i }) => {
+      const d = t.timer!.deadline;
+      const fnName = taskCtxs[i]!.name;
+      return {
+        doc: `/// T${t.taskId} timeout: ${t.label} 기한(${"var" in d ? d.var : `${d.seconds}s`}) 경과 시 누구나 호출  in: ${t.in.join(" | ")}  out: ${t.timer!.out}`,
+        fn: `expire${fnName.charAt(0).toUpperCase()}${fnName.slice(1)}`,
+        taskConst: taskConstNames[i]!,
+        inMask: mask(t.in),
+        outMask: mask([t.timer!.out]),
+        deadline: "var" in d ? `vars[id].${d.var}` : String(d.seconds),
+      };
+    });
+
   // ── 조회 ──
   const enabled = tasks.map((t, i) => ({ inMask: mask(t.in), taskConst: taskConstNames[i]! }));
 
@@ -222,6 +254,8 @@ export function buildContext(ir: IR): TemplateContext {
     contractName: ir.process.id,
     processName: ir.process.name,
     hasPayment: tasks.some((t) => !!t.payment),
+    hasTimer: timers.length > 0,
+    timers,
     roles,
     roleCount: ir.roles.length,
     roleOrder: ir.roles.map((r) => r.key).join(", "),

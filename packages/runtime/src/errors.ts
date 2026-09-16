@@ -40,6 +40,10 @@ export function translateError(err: ContractError, ir?: IR): Translation {
       return { message: "프로세스 소유자만 할 수 있는 작업이에요", hint: { kind: "process" } };
     case "RoleCount":
       return { message: "모든 역할의 담당자를 지정해 주세요", hint: { kind: "lane" } };
+    case "NotExpired": {
+      const task = ir?.nodes.find((n) => n.kind === "userTask" && n.taskId === Number(a1));
+      return { message: `${task?.kind === "userTask" ? `[${task.label}] ` : ""}아직 기한이 지나지 않았어요`, hint: { kind: "task", ...(task ? { id: task.id } : {}) } };
+    }
     case "PaymentFailed":
       return { message: "결제가 되지 않았어요. 토큰 잔액과 이 프로세스에 대한 지출 승인(approve)을 확인하세요", hint: { kind: "task" } };
     case "Reentrant":

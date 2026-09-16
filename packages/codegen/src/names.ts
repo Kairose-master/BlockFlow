@@ -16,6 +16,8 @@ const RESERVED = new Set([
   "storage", "string", "struct", "supports", "switch", "this", "throw", "true", "try", "type",
   "typedef", "typeof", "ufixed", "uint", "unchecked", "unicode", "using", "var", "view",
   "virtual", "while",
+  // 단위·전역
+  "wei", "gwei", "ether", "seconds", "minutes", "hours", "days", "weeks", "years", "now", "super", "msg", "tx", "block",
   // 골격이 쓰는 이름 (6.1)
   "owner", "paused", "instanceCount", "instances", "vars", "roleOf", "setPaused",
   "createInstance", "rebindRole", "enabledTasks", "_require", "_fire", "_step",

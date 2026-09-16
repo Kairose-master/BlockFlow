@@ -25,6 +25,7 @@ pnpm modeler:build && PW_CHROMIUM=/path/to/chrome pnpm modeler:e2e   # Playwrigh
 - IR 스키마(`packages/ir/schema/bf-ir.schema.json`)와 TS 타입(`packages/ir/src/index.ts`)은 항상 같이 바꾼다.
 - 규칙 메시지(R1~R12, 커스텀 에러 번역)는 비전문가용 한국어 문장이다. "함수·트랜잭션·가스" 라는 말을 쓰지 않는다 (1.2).
 - 조건식 DSL(4.4)에 산술을 추가하지 않는다 (L0). 새 BPMN 요소는 레벨(L0/L1/L2) 을 먼저 정한다.
+- L1 요소(결제·타이머)는 템플릿의 `{{#hasPayment}}`/`{{#hasTimer}}` 섹션 안에만 코드를 낸다. L0 예시의 생성물이 1바이트라도 바뀌면 안 된다.
 - 프로세스 변수 이름은 생성 코드의 지역 이름(`id`, `m`, `v`, `inst` …)과 겹치면 안 된다 (validator 가 막는다).
 
 ## 패키지 의존 방향

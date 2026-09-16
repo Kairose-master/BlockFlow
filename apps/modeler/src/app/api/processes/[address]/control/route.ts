@@ -21,6 +21,9 @@ export function POST(req: Request, ctx: { params: Promise<{ address: string }> }
       const receipt = await e.send(p, "rebindRole", [BigInt(body.instance), roleHash(body.role), body.account], owner);
       return json({ hash: receipt.hash });
     }
+    if (body.action === "skipTime") {
+      return json({ now: e.skipTime(Number((body as { seconds?: number }).seconds ?? 0)) });
+    }
     throw new ApiError(400, "알 수 없는 동작");
   });
 }

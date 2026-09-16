@@ -10,8 +10,8 @@
 import type { ModdleElement } from "bpmn-moddle";
 import { createModdle } from "./parse";
 
-const NODE_W: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 100, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50 };
-const NODE_H: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 80, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50 };
+const NODE_W: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 100, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50, "bpmn:BoundaryEvent": 36 };
+const NODE_H: Record<string, number> = { "bpmn:StartEvent": 36, "bpmn:EndEvent": 36, "bpmn:UserTask": 80, "bpmn:ExclusiveGateway": 50, "bpmn:ParallelGateway": 50, "bpmn:BoundaryEvent": 36 };
 const COL = 170; // 층 간격
 const ROW = 110; // 슬롯 간격
 const LANE_PAD = 20;
@@ -50,7 +50,8 @@ export async function ensureLayout(xml: string): Promise<LayoutResult> {
     participant = arr(collaboration.participants)[0]!;
   }
 
-  const nodes = arr(process.flowElements).filter((e) => e.$type !== "bpmn:SequenceFlow");
+  const boundaries = arr(process.flowElements).filter((e) => e.$type === "bpmn:BoundaryEvent");
+  const nodes = arr(process.flowElements).filter((e) => e.$type !== "bpmn:SequenceFlow" && e.$type !== "bpmn:BoundaryEvent");
   const flows = arr(process.flowElements).filter((e) => e.$type === "bpmn:SequenceFlow");
   const lanes = arr(process.laneSets).flatMap((ls) => arr(ls.lanes));
   const laneOf = new Map<string, number>();
@@ -62,6 +63,11 @@ export async function ensureLayout(xml: string): Promise<LayoutResult> {
     const s = (f.sourceRef as ModdleElement).id!;
     const t = (f.targetRef as ModdleElement).id!;
     succ.set(s, [...(succ.get(s) ?? []), t]);
+  }
+  // 경계 이벤트의 나가는 플로우는 붙은 태스크에서 나가는 것으로 본다
+  for (const b of boundaries) {
+    const host = (b.attachedToRef as ModdleElement | undefined)?.id;
+    if (host) for (const t of arr(b.outgoing).map((f) => (f.targetRef as ModdleElement).id!)) succ.set(host, [...(succ.get(host) ?? []), t]);
   }
   const layer = new Map<string, number>();
   for (const n of nodes) layer.set(n.id!, 0);
@@ -126,13 +132,24 @@ export async function ensureLayout(xml: string): Promise<LayoutResult> {
       : {};
     planeElements.push(shape(n, p.x, p.y, w, h, label));
   }
+  // 경계 이벤트: 붙은 태스크의 오른쪽 아래 모서리
+  for (const b of boundaries) {
+    const host = pos.get((b.attachedToRef as ModdleElement).id!);
+    if (!host) continue;
+    const p = { x: host.x + host.w - 30, y: host.y + host.h - 18, w: 36, h: 36 };
+    pos.set(b.id!, p);
+    planeElements.push(shape(b, p.x, p.y, p.w, p.h, { label: moddle.create("bpmndi:BPMNLabel", { bounds: bounds(p.x - 10, p.y + 40, 56, 14) }) }));
+  }
   for (const f of flows) {
     const s = pos.get((f.sourceRef as ModdleElement).id!)!;
     const t = pos.get((f.targetRef as ModdleElement).id!)!;
-    const sx = s.x + s.w, sy = s.y + s.h / 2;
+    const isBoundary = boundaries.some((b) => b.id === (f.sourceRef as ModdleElement).id);
+    const sx = isBoundary ? s.x + s.w / 2 : s.x + s.w, sy = isBoundary ? s.y + s.h : s.y + s.h / 2;
     const tx = t.x, ty = t.y + t.h / 2;
     const midX = Math.round((sx + tx) / 2);
-    const pts = sy === ty ? [[sx, sy], [tx, ty]] : tx > sx ? [[sx, sy], [midX, sy], [midX, ty], [tx, ty]] : [[sx, sy], [sx + 20, sy], [sx + 20, ty], [tx, ty]];
+    const pts = isBoundary
+      ? [[sx, sy], [sx, ty], [tx, ty]]
+      : sy === ty ? [[sx, sy], [tx, ty]] : tx > sx ? [[sx, sy], [midX, sy], [midX, ty], [tx, ty]] : [[sx, sy], [sx + 20, sy], [sx + 20, ty], [tx, ty]];
     planeElements.push(
       moddle.create("bpmndi:BPMNEdge", { id: `${f.id}_di`, bpmnElement: f, waypoint: pts.map(([x, y]) => moddle.create("dc:Point", { x, y })) }),
     );
@@ -141,5 +158,5 @@ export async function ensureLayout(xml: string): Promise<LayoutResult> {
   const diagram = moddle.create("bpmndi:BPMNDiagram", { id: `Diagram_${process.id}`, plane });
   defs.diagrams = [diagram];
   const { xml: out } = await moddle.toXML(defs, { format: true });
-  return { xml: out, nodes: nodes.length };
+  return { xml: out, nodes: nodes.length + boundaries.length };
 }

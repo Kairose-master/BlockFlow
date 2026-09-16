@@ -15,10 +15,10 @@ async function openExample(page: Page, name: string, waitFor = "Task_Submit") {
   await expect(page.locator(`[data-element-id="${waitFor}"]`)).toBeVisible();
 }
 
-test("팔레트는 L0 요소만 보여준다", async ({ page }) => {
+test("팔레트는 L0 요소 + 기한(L1 타이머)만 보여준다", async ({ page }) => {
   await page.goto("/");
   const entries = page.locator(".djs-palette .entry");
-  await expect(entries).toHaveCount(7); // 손, 선택, 시작, 끝, 할 일, XOR, AND
+  await expect(entries).toHaveCount(8); // 손, 선택, 시작, 끝, 할 일, XOR, AND, 기한
   await expect(page.locator(".djs-palette .bpmn-icon-subprocess-expanded")).toHaveCount(0);
   await expect(page.locator(".djs-palette .bpmn-icon-task")).toHaveCount(0);
 });

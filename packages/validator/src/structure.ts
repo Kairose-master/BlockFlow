@@ -6,6 +6,21 @@
  */
 import { type IR, inFlows, outFlows } from "@blockflow/ir";
 
+/** Solidity 예약어 (names.ts 와 같은 목록의 부분집합; validator 는 codegen 에 의존하지 않으므로 여기 둔다) */
+const SOLIDITY_KEYWORDS = new Set([
+  "abstract", "address", "after", "alias", "anonymous", "apply", "as", "assembly", "auto", "bool", "break", "byte", "bytes", "calldata",
+  "case", "catch", "constant", "constructor", "continue", "contract", "copyof", "default", "define", "delete", "do", "else", "emit",
+  "enum", "error", "event", "external", "fallback", "false", "final", "fixed", "for", "function", "hex", "if", "immutable",
+  "implements", "import", "in", "indexed", "inline", "int", "interface", "internal", "is", "let", "library", "macro", "mapping",
+  "match", "memory", "modifier", "mutable", "new", "null", "of", "override", "partial", "payable", "pragma", "private", "promise",
+  "public", "pure", "receive", "reference", "relocatable", "return", "returns", "sealed", "sizeof", "static", "storage", "string",
+  "struct", "supports", "switch", "throw", "true", "try", "type", "typedef", "typeof", "ufixed", "uint", "unchecked", "unicode",
+  "using", "var", "view", "virtual", "while",
+]);
+function isReserved(name: string): boolean {
+  return SOLIDITY_KEYWORDS.has(name) || /^(u?int(8|16|24|32|40|48|56|64|72|80|88|96|104|112|120|128|136|144|152|160|168|176|184|192|200|208|216|224|232|240|248|256)?|bytes([1-9]|[12][0-9]|3[0-2])?)$/.test(name);
+}
+
 export function checkStructure(ir: IR): string[] {
   const problems: string[] = [];
   const nodeIds = new Set<string>();
@@ -16,9 +31,13 @@ export function checkStructure(ir: IR): string[] {
   if (ir.version !== "bf-ir/0.1") problems.push(`지원하지 않는 IR 버전: ${ir.version}`);
 
   // 생성 코드의 지역 변수/매개변수와 충돌하는 변수 이름
-  const RESERVED_VARS = new Set(["id", "m", "v", "inst", "bits", "roles", "roleAccounts", "i", "p", "consume", "produce", "taskId", "inFlow"]);
+  const RESERVED_VARS = new Set([
+    "id", "m", "v", "inst", "bits", "roles", "roleAccounts", "i", "p", "consume", "produce", "taskId", "inFlow",
+    // Solidity 단위·전역 이름
+    "wei", "gwei", "ether", "seconds", "minutes", "hours", "days", "weeks", "years", "now", "this", "super", "msg", "tx", "block",
+  ]);
   for (const v of ir.variables) {
-    if (RESERVED_VARS.has(v.name)) problems.push(`변수 이름 '${v.name}' 은 생성 코드에서 예약돼 있음`);
+    if (RESERVED_VARS.has(v.name) || isReserved(v.name)) problems.push(`변수 이름 '${v.name}' 은 Solidity/생성 코드에서 예약돼 있음`);
   }
 
   for (const n of ir.nodes) {
@@ -71,10 +90,20 @@ export function checkStructure(ir: IR): string[] {
         if (fnNames.has(n.name)) problems.push(`태스크 함수명 중복: ${n.name} (${n.id})`);
         fnNames.add(n.name);
         if (!roleKeys.has(n.role)) problems.push(`태스크 ${n.id} 의 역할이 선언되지 않음: ${n.role} (R7)`);
-        if (n.out.length !== 1) problems.push(`태스크 ${n.id} 는 나가는 플로우가 1개여야 함 (R3)`);
+        if (n.out.length !== 1) problems.push(`태스크 ${n.id} 는 나가는 플로우가 1개여야 함 (R3, 타이머 만료 경로는 timer 에 둔다)`);
         if (n.in.length < 1) problems.push(`태스크 ${n.id} 는 들어오는 플로우가 필요함 (R3)`);
         for (const inp of n.inputs) {
           if (!varNames.has(inp.variable)) problems.push(`태스크 ${n.id} 의 입력 변수가 선언되지 않음: ${inp.variable}`);
+        }
+        if (n.timer) {
+          const f = ir.flows.find((x) => x.id === n.timer!.out);
+          if (!f) problems.push(`타이머 태스크 ${n.id} 의 만료 플로우가 없음: ${n.timer.out}`);
+          else if (f.from !== n.id || !f.timer) problems.push(`타이머 태스크 ${n.id} 의 만료 플로우 ${f.id} 는 from=${n.id}, timer=true 여야 함`);
+          if ("var" in n.timer.deadline) {
+            const v = ir.variables.find((x) => x.name === (n.timer!.deadline as { var: string }).var);
+            if (!v) problems.push(`타이머 태스크 ${n.id} 의 기한 변수가 선언되지 않음`);
+            else if (v.type !== "uint256") problems.push(`타이머 태스크 ${n.id} 의 기한 변수 ${v.name} 은 uint256(초) 이어야 함`);
+          }
         }
         if (n.payment) {
           const amount = ir.variables.find((v) => v.name === n.payment!.amountVar);

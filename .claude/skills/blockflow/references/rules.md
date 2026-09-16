@@ -19,3 +19,5 @@
 Soundness(1-safe·데드락·남은 토큰·dead task)는 IR 단계의 `packages/validator` 가 본다.
 
 | L1 | 결제 태스크: 토큰 주소(0x…40자리), 받는 쪽(역할 키 또는 주소), 금액 변수(uint256, 이전에 입력됨) | 결제에 쓸 토큰 주소를 넣어 주세요 … | `bc:payToken`/`bc:payTo`/`bc:payAmountVar` 누락 |
+| L1 | 타이머 경계 이벤트: 사용자 태스크에 부착, in 0 / out 1, 기한(값 uint256 초 또는 초 리터럴), 태스크당 1개 | 기한 이벤트는 할 일(사용자 태스크)에 붙여야 해요 … | `attachedToRef`·`bc:deadlineVar`/`bc:deadlineSeconds` 누락 |
+| R12 | 변수 이름이 Solidity 예약어(days, seconds, ether …)이거나 생성 코드 지역 이름(id, m, v …) | '{name}' 은 쓸 수 없는 이름이에요 | `days` 대신 `leaveDays` |

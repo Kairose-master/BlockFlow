@@ -9,9 +9,11 @@ export function POST(req: Request, ctx: { params: Promise<{ address: string }> }
     const user = e.user(userHeader(req));
     const { address } = await ctx.params;
     const p = e.process(address);
-    const body = (await req.json()) as { instance: string; task: string; args?: Record<string, unknown> };
-    const args = coerceArgs(p.ir, body.task, body.args ?? {});
-    const receipt = await e.send(p, body.task, [BigInt(body.instance), ...args], user);
+    const body = (await req.json()) as { instance: string; task: string; args?: Record<string, unknown>; expire?: boolean };
+    // L1 타이머: 기한이 지난 태스크는 누구나 만료 처리할 수 있다 (expire{Fn})
+    const fn = body.expire ? `expire${body.task.charAt(0).toUpperCase()}${body.task.slice(1)}` : body.task;
+    const args = body.expire ? [] : coerceArgs(p.ir, body.task, body.args ?? {});
+    const receipt = await e.send(p, fn, [BigInt(body.instance), ...args], user);
     const ended = receipt.events.find((ev) => ev.name === "InstanceEnded");
     return json({ hash: receipt.hash, gasUsed: receipt.gasUsed, ended: !!ended, completed: ended?.args.completed ?? null });
   });

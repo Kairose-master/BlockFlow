@@ -59,6 +59,8 @@ function transitions(ir: IR): Transition[] {
       case "userTask":
         // 컨트랙트는 in 마스크 전체를 소비하지만 1-safe 에서는 하나만 있으므로 동일.
         for (const f of n.in) add(n, [f], false, n.out, false, `${n.id}(${f})`);
+        // 타이머 만료: 같은 토큰을 만료 경로로 (시간은 비결정적 선택으로 추상화)
+        if (n.timer) for (const f of n.in) add(n, [f], false, [n.timer.out], false, `${n.id}⏰(${f})`);
         break;
       case "xorSplit":
         for (const f of outFlows(n)) add(n, n.in, false, [f], false, `${n.id}→${f}`);

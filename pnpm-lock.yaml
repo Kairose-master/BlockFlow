@@ -12,6 +12,9 @@ importers:
         specifier: ^10.2.0
         version: 10.2.0
     devDependencies:
+      '@ethereumjs/block':
+        specifier: ^10.1.3
+        version: 10.1.3
       '@ethereumjs/common':
         specifier: ^10.1.3
         version: 10.1.3
@@ -148,6 +151,9 @@ importers:
       '@blockflow/ir':
         specifier: workspace:*
         version: link:../ir
+      '@ethereumjs/block':
+        specifier: ^10.1.3
+        version: 10.1.3
       '@ethereumjs/common':
         specifier: ^10.1.3
         version: 10.1.3

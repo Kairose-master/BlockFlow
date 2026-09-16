@@ -19,6 +19,7 @@ interface Instance {
   outcome?: string;
   roles: Record<string, string>;
   enabled: { taskId: number; id: string; name: string; label: string; role: string }[];
+  timers?: Record<string, { expiresAt: number }>;
 }
 
 interface BoardData {
@@ -29,12 +30,21 @@ interface BoardData {
   paused: boolean;
   version: number;
   supersededBy: string | null;
+  now: number;
+  mode: "local" | "rpc";
   instances: Instance[];
   timeline: { block: string; seq: number; instance: string; kind: string; text: string; actor?: string }[];
 }
 
 interface Accounts {
   users: { address: string; label: string }[];
+}
+
+function fmtLeft(sec: number): string {
+  if (sec >= 86400) return `${Math.floor(sec / 86400)}일 ${Math.floor((sec % 86400) / 3600)}시간`;
+  if (sec >= 3600) return `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`;
+  if (sec >= 60) return `${Math.floor(sec / 60)}분`;
+  return `${sec}초`;
 }
 
 export function Board({ address }: { address: string }) {
@@ -110,6 +120,27 @@ export function Board({ address }: { address: string }) {
       setCreating(false);
       await load();
       setSelected(String(r.instance));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const expire = async (instance: string, taskName: string) => {
+    setError("");
+    try {
+      await api(`/api/processes/${address}/tasks`, { method: "POST", body: JSON.stringify({ instance, task: taskName, expire: true }) });
+      setNotice("기한이 지나 만료 처리했어요.");
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const skipTime = async (seconds: number) => {
+    setError("");
+    try {
+      await api(`/api/processes/${address}/control`, { method: "POST", body: JSON.stringify({ action: "skipTime", seconds }) });
+      await load();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -205,6 +236,28 @@ export function Board({ address }: { address: string }) {
                 )}
               </div>
             ))}
+          </div>
+        )}
+        {inst && !inst.ended && inst.timers && Object.keys(inst.timers).length > 0 && (
+          <div className="p-3 border-b border-gray-200 text-sm" data-testid="timers">
+            <h3 className="font-semibold mb-2">기한</h3>
+            {inst.enabled.filter((t) => inst.timers?.[t.id]).map((t) => {
+              const left = inst.timers![t.id]!.expiresAt - data.now;
+              return (
+                <div key={t.id} className="flex items-center gap-2 mb-1">
+                  <span>[{t.label}]</span>
+                  {left > 0 ? <span className="text-gray-500">{fmtLeft(left)} 남음</span> : <span className="text-amber-700">기한 지남</span>}
+                  {left <= 0 && <button className="btn" onClick={() => void expire(inst.id, t.name)} data-testid={`expire-${t.name}`}>만료 처리</button>}
+                </div>
+              );
+            })}
+            {data.mode === "local" && (
+              <div className="mt-2 text-xs text-gray-500">
+                개발용:{" "}
+                <button className="underline" onClick={() => void skipTime(3600)} data-testid="skip-1h">1시간 건너뛰기</button>{" · "}
+                <button className="underline" onClick={() => void skipTime(86400)} data-testid="skip-1d">하루 건너뛰기</button>
+              </div>
+            )}
           </div>
         )}
         {inst && myTasks.length > 0 && (

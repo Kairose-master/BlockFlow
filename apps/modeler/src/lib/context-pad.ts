@@ -48,6 +48,14 @@ class BlockFlowContextPadProvider {
       entries["delete"] = remove;
       return entries;
     }
+    if (type === "bpmn:BoundaryEvent") {
+      entries["connect"] = {
+        group: "connect", className: "bpmn-icon-connection-multi", title: "기한이 지나면 갈 곳으로 연결",
+        action: { click: (e: unknown) => connect.start(e, element), dragstart: (e: unknown) => connect.start(e, element) },
+      };
+      entries["delete"] = remove;
+      return entries;
+    }
     if (type !== "bpmn:EndEvent") {
       for (const a of APPENDABLE) {
         const start = (event: unknown) => create.start(event, elementFactory.createShape({ type: a.type }), { source: element });

@@ -143,6 +143,24 @@
           "default": "completed"
         }
       ]
+    },
+    {
+      "name": "BoundaryExt",
+      "extends": [
+        "bpmn:BoundaryEvent"
+      ],
+      "properties": [
+        {
+          "name": "deadlineVar",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "deadlineSeconds",
+          "isAttr": true,
+          "type": "Integer"
+        }
+      ]
     }
   ]
 }

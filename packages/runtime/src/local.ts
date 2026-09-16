@@ -8,6 +8,7 @@ import { Common, Hardfork, Mainnet } from "@ethereumjs/common";
 import { createLegacyTx } from "@ethereumjs/tx";
 import { Address as EjsAddress, bytesToHex, createAccount, createAddressFromPrivateKey, hexToBytes } from "@ethereumjs/util";
 import { createVM, runTx, type VM } from "@ethereumjs/vm";
+import { createBlock } from "@ethereumjs/block";
 import { type Abi, decodeErrorResult, decodeEventLog, decodeFunctionResult, encodeDeployData, encodeFunctionData, getAddress } from "viem";
 import {
   type Address, type CompiledProcess, type DecodedEvent, type ProcessAdapter, type Signer, type Simulation,
@@ -37,6 +38,17 @@ export class LocalEvmAdapter implements ProcessAdapter {
   private nonces = new Map<string, bigint>();
   private logs: LogEntry[] = [];
   private block = 0n;
+  /** 시각 오프셋(초): 개발용 "시간 빨리 감기" (타이머 만료 시험). */
+  timeOffset = 0;
+
+  /** 현재 체인 시각 (초) */
+  now(): number {
+    return Math.floor(Date.now() / 1000) + this.timeOffset;
+  }
+
+  private nextBlock() {
+    return createBlock({ header: { number: this.block + 1n, timestamp: BigInt(this.now()), gasLimit: 30_000_000n, baseFeePerGas: 7n } }, { common });
+  }
   private watchers: { address: Address; abi: Abi; cb: (e: DecodedEvent & { blockNumber: bigint }) => void }[] = [];
 
   private constructor(private readonly vm: VM) {}
@@ -59,16 +71,17 @@ export class LocalEvmAdapter implements ProcessAdapter {
       { common },
     ).sign(from.pk);
     const hash = bytesToHex(tx.hash()) as `0x${string}`;
+    const block = this.nextBlock();
     if (!commit) {
       // 시뮬레이션: 상태를 체크포인트로 감싸고 되돌린다.
       await this.vm.stateManager.checkpoint();
       try {
-        return { r: await runTx(this.vm, { tx }), hash };
+        return { r: await runTx(this.vm, { tx, block }), hash };
       } finally {
         await this.vm.stateManager.revert();
       }
     }
-    const r = await runTx(this.vm, { tx });
+    const r = await runTx(this.vm, { tx, block });
     this.block += 1n;
     return { r, hash };
   }
@@ -91,7 +104,7 @@ export class LocalEvmAdapter implements ProcessAdapter {
 
   async read(address: Address, abi: Abi, fn: string, args: readonly unknown[] = []): Promise<unknown> {
     const data = encodeFunctionData({ abi, functionName: fn, args: args as unknown[] });
-    const r = await this.vm.evm.runCall({ to: new EjsAddress(hexToBytes(address)), data: hexToBytes(data), gasLimit: 5_000_000n });
+    const r = await this.vm.evm.runCall({ to: new EjsAddress(hexToBytes(address)), data: hexToBytes(data), gasLimit: 5_000_000n, block: this.nextBlock() });
     if (r.execResult.exceptionError) throw new Error(`읽기 실패: ${r.execResult.exceptionError.error}`);
     return decodeFunctionResult({ abi, functionName: fn, data: bytesToHex(r.execResult.returnValue) as `0x${string}` });
   }

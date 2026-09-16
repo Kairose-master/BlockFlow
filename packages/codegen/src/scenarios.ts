@@ -12,6 +12,12 @@ import { type Ast, type Value, evalExpr, literalsFor, parseExpr } from "./expr";
 
 export interface PlanStep {
   task: UserTaskNode;
+  /** "task" = 담당자가 완료, "expire" = 기한이 지나 누구나 만료 처리 */
+  kind: "task" | "expire";
+  /** 이 단계의 블록 시각 (초). 실행기는 이 시각으로 warp 한 뒤 트랜잭션을 보낸다 */
+  time: number;
+  /** expire 단계: 기한 길이(초). 0 이면 즉시 만료 가능하므로 "기한 전 거부" 음성 테스트를 만들지 않는다 */
+  deadlineSeconds?: number;
   /** 입력 변수 이름 → 값 */
   args: Record<string, Value>;
   markingAfter: bigint;
@@ -24,7 +30,7 @@ export interface PlanStep {
 
 export interface Plan {
   index: number;
-  /** 사람이 읽는 설명: "submit → approve → pay | X1→F3, X2→F11" */
+  /** 사람이 읽는 설명: "submit → approve⏰ → pay | X1→F3, X2→F11" */
   description: string;
   steps: PlanStep[];
   /** XOR 결정 목록 ("X1→F3") */
@@ -149,7 +155,8 @@ export function planScenarios(ir: IR, opts: PlanOptions = {}): Plan[] {
   const roleAddrs = ir.roles.map((r) => roles.get(r.key)!.toLowerCase());
   const sim = buildSim(ir);
   const cands = candidates(ir, roleAddrs);
-  const tasks = userTasks(ir).map((t) => ({ t, inMask: maskOf(ir, t.in), outMask: maskOf(ir, t.out) }));
+  const tasks = userTasks(ir).map((t) => ({ t, inMask: maskOf(ir, t.in), outMask: maskOf(ir, t.out), timerMask: t.timer ? maskOf(ir, [t.timer.out]) : 0n }));
+  const T0 = 1_700_000_000; // 시뮬레이션 시작 시각 (초)
   const start = nodesOfKind(ir, "startEvent")[0];
   if (!start) throw new Error("시작 이벤트가 없습니다");
   const m0 = maskOf(ir, start.out);
@@ -161,14 +168,28 @@ export function planScenarios(ir: IR, opts: PlanOptions = {}): Plan[] {
     steps: PlanStep[];
     decisions: string[];
     outcome?: string;
+    /** 현재 시각 */
+    now: number;
+    /** 타이머 태스크 id → 활성화 시각 (컨트랙트의 startedAt) */
+    startedAt: Map<string, number>;
   }
+  /** _stamp 와 같은 규칙: 타이머 태스크가 활성이고 아직 기록이 없으면 지금 시각을 기록 */
+  const stamp = (m: bigint, now: number, prev: Map<string, number>) => {
+    const next = new Map(prev);
+    for (const x of tasks) if (x.t.timer && (m & x.inMask) !== 0n && !next.has(x.t.id)) next.set(x.t.id, now);
+    return next;
+  };
+  const deadlineOf = (t: UserTaskNode, vars: Map<string, Value>): number => {
+    const d = t.timer!.deadline;
+    return "seconds" in d ? d.seconds : Number(vars.get(d.var) ?? 0n);
+  };
   // 상태 키에 경로(태스크 순서)를 포함해 병렬 가지의 인터리빙도 서로 다른 경로로 센다.
   const key = (s: State) =>
-    `${s.m}|${s.ended}|${[...s.vars.entries()].sort().map(([k, v]) => `${k}=${String(v)}`).join(",")}|${s.steps.map((x) => x.task.id).join(",")}`;
+    `${s.m}|${s.ended}|${[...s.vars.entries()].sort().map(([k, v]) => `${k}=${String(v)}`).join(",")}|${s.steps.map((x) => `${x.task.id}${x.kind === "expire" ? "⏰" : ""}`).join(",")}`;
   const visited = new Set<string>();
   const plans: Plan[] = [];
   const seenPaths = new Set<string>();
-  const stack: State[] = [{ m: m0, ended: false, vars: new Map(), steps: [], decisions: [] }];
+  const stack: State[] = [{ m: m0, ended: false, vars: new Map(), steps: [], decisions: [], now: T0, startedAt: stamp(m0, T0, new Map()) }];
   visited.add(key(stack[0]!));
   let states = 0;
 
@@ -176,12 +197,12 @@ export function planScenarios(ir: IR, opts: PlanOptions = {}): Plan[] {
     const s = stack.pop()!;
     states++;
     if (s.ended) {
-      const pathKey = `${s.steps.map((x) => x.task.id).join(",")}|${s.decisions.join(",")}`;
+      const pathKey = `${s.steps.map((x) => `${x.task.id}${x.kind === "expire" ? "⏰" : ""}`).join(",")}|${s.decisions.join(",")}`;
       if (!seenPaths.has(pathKey)) {
         seenPaths.add(pathKey);
         plans.push({
           index: plans.length + 1,
-          description: `${s.steps.map((x) => x.task.name).join(" → ")}${s.decisions.length ? ` | ${s.decisions.join(", ")}` : ""}`,
+          description: `${s.steps.map((x) => `${x.task.name}${x.kind === "expire" ? "⏰" : ""}`).join(" → ")}${s.decisions.length ? ` | ${s.decisions.join(", ")}` : ""}`,
           steps: s.steps,
           decisions: s.decisions,
           outcome: s.outcome ?? "completed",
@@ -194,6 +215,7 @@ export function planScenarios(ir: IR, opts: PlanOptions = {}): Plan[] {
     const next: State[] = [];
     for (const x of enabled) {
       const disabledTask = tasks.find((y) => (s.m & y.inMask) === 0n)?.t;
+      // (a) 담당자가 완료
       for (const combo of combos(x.t.inputs.map((i) => cands.get(i.variable) ?? []))) {
         const vars = new Map(s.vars);
         const args: Record<string, Value> = {};
@@ -202,11 +224,30 @@ export function planScenarios(ir: IR, opts: PlanOptions = {}): Plan[] {
           args[inp.variable] = combo[i]!;
         });
         const decisions = [...s.decisions];
+        const now = s.now + 10; // 단계마다 시간이 조금 흐른다
         const r = step(sim, (s.m & ~x.inMask) | x.outMask, { vars, roles }, decisions);
-        const stepRec: PlanStep = { task: x.t, args, markingAfter: r.m, endedAfter: r.ended };
+        const stepRec: PlanStep = { task: x.t, kind: "task", time: now, args, markingAfter: r.m, endedAfter: r.ended };
         if (r.outcome !== undefined) stepRec.outcomeAfter = r.outcome;
         if (disabledTask) stepRec.disabledTask = disabledTask;
-        const ns: State = { m: r.m, ended: r.ended, vars, steps: [...s.steps, stepRec], decisions };
+        const ns: State = { m: r.m, ended: r.ended, vars, steps: [...s.steps, stepRec], decisions, now, startedAt: stamp(r.m, now, s.startedAt) };
+        if (r.outcome !== undefined) ns.outcome = r.outcome;
+        const k = key(ns);
+        if (!visited.has(k)) {
+          visited.add(k);
+          next.push(ns);
+        }
+      }
+      // (b) 기한 만료 (타이머 태스크): 기한 시각으로 warp 한 뒤 누구나 expire 호출
+      if (x.t.timer) {
+        const started = s.startedAt.get(x.t.id) ?? s.now;
+        const deadline = deadlineOf(x.t, s.vars);
+        const now = Math.max(s.now + 1, started + deadline);
+        const decisions = [...s.decisions];
+        const r = step(sim, (s.m & ~x.inMask) | x.timerMask, { vars: s.vars, roles }, decisions);
+        const stepRec: PlanStep = { task: x.t, kind: "expire", time: now, deadlineSeconds: deadline, args: {}, markingAfter: r.m, endedAfter: r.ended };
+        if (r.outcome !== undefined) stepRec.outcomeAfter = r.outcome;
+        if (disabledTask) stepRec.disabledTask = disabledTask;
+        const ns: State = { m: r.m, ended: r.ended, vars: s.vars, steps: [...s.steps, stepRec], decisions, now, startedAt: stamp(r.m, now, s.startedAt) };
         if (r.outcome !== undefined) ns.outcome = r.outcome;
         const k = key(ns);
         if (!visited.has(k)) {

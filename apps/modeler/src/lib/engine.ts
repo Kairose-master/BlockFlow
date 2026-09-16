@@ -96,6 +96,18 @@ export class Engine {
     return this.users[0]!;
   }
 
+  /** 체인 시각 (초). 로컬 모드는 어댑터 시계(오프셋 포함), rpc 모드는 서버 시각. */
+  now(): number {
+    return this.adapter instanceof LocalEvmAdapter ? this.adapter.now() : Math.floor(Date.now() / 1000);
+  }
+
+  /** 개발용 "시간 빨리 감기" (로컬 모드만). 타이머 만료를 시험할 때 쓴다. */
+  skipTime(seconds: number): number {
+    if (!(this.adapter instanceof LocalEvmAdapter)) throw new ApiError(400, "실제 체인에서는 시간을 건너뛸 수 없어요");
+    this.adapter.timeOffset += seconds;
+    return this.adapter.now();
+  }
+
   user(address: string | null | undefined): DemoUser {
     const u = this.users.find((x) => x.address.toLowerCase() === (address ?? "").toLowerCase());
     if (!u) throw new ApiError(401, "사용자를 먼저 선택하세요");
