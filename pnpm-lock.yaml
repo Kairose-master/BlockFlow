@@ -75,6 +75,34 @@ importers:
 
   packages/ir: {}
 
+  packages/runtime:
+    dependencies:
+      '@blockflow/ir':
+        specifier: workspace:*
+        version: link:../ir
+      '@ethereumjs/common':
+        specifier: ^10.1.3
+        version: 10.1.3
+      '@ethereumjs/tx':
+        specifier: ^10.1.3
+        version: 10.1.3
+      '@ethereumjs/util':
+        specifier: ^10.1.3
+        version: 10.1.3
+      '@ethereumjs/vm':
+        specifier: ^10.1.3
+        version: 10.1.3
+      viem:
+        specifier: ^2.56.5
+        version: 2.56.5(typescript@5.9.3)
+    devDependencies:
+      '@blockflow/bpmn':
+        specifier: workspace:*
+        version: link:../bpmn
+      '@blockflow/codegen':
+        specifier: workspace:*
+        version: link:../codegen
+
   packages/validator:
     dependencies:
       '@blockflow/ir':

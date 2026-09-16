@@ -175,6 +175,13 @@ Slither 검출기 → 비전문가 문장 매핑표를 유지. 생성 코드는 
 - **경로 B — Kaia 수수료 대납**: `TxTypeFeeDelegatedSmartContractExecution` 등 프로토콜 네이티브 대납. `@kaiachain/viem-ext`. 테스트넷 Kairos (1001).
 - 권장: 한국 사용자·기관 데모면 B, 글로벌/오픈소스면 A. IR·생성기는 동일하고 배포·서명 어댑터(`deploy()`, `sendTask()`, `watch()`)만 다르므로 어댑터 인터페이스를 먼저 고정.
 - 남용 방지: 함수 allowlist + 계정당 일일 한도 + `simulateContract` 성공한 호출만 릴레이.
+- 어댑터 인터페이스는 `packages/runtime/src/adapter.ts` 에 고정했다 (`deploy / read / simulate / send / watch`).
+  `send` 는 항상 `simulate` 를 먼저 하고 실패하면 트랜잭션을 보내지 않는다. 커스텀 에러 → 비전문가 문장 표는 `errors.ts`,
+  Safe Transaction Builder 호환 "서명 없는 트랜잭션 패키지" 는 `package.ts` (소유자 제어를 다중서명 지갑에서 실행하거나 백엔드 다운 시 폴백).
+- 참고: Aomi Labs (`github.com/aomi-labs`) 의 실행 파이프라인 — Anvil 포크 위 배치 시뮬레이션 → 지갑 요청 큐 → 사용자 서명,
+  AA 모드 자동 선택 (Ethereum 은 EIP-7702, L2 는 ERC-4337, Pimlico/Alchemy 스폰서, 둘 다 실패 시 조용한 폴백 없이 에러),
+  wagmi + Para(Privy) / Base Account 위젯. 위젯·런타임은 Aomi 백엔드가 필요해 그대로 쓰진 않지만, "시뮬레이션 우선·서명 없는 패키지·
+  모드 자동 선택 + 명시적 실패" 원칙은 Phase 3 어댑터 설계에 반영한다. liqsteward 의 "도구는 서명·전송하지 않는다" 경계도 같다.
 
 ## 10. 스택 (2026-09 검증)
 

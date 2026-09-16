@@ -36,3 +36,16 @@ jobs:
       - run: forge install foundry-rs/forge-std
       - run: forge build --sizes
       - run: forge test -vv
+
+  slither:
+    name: slither (V3 정적 분석)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: cd contracts && forge install foundry-rs/forge-std
+      - uses: crytic/slither-action@v0.4.1
+        with:
+          target: contracts/
+          slither-config: contracts/slither.config.json
+          fail-on: medium

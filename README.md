@@ -31,6 +31,10 @@
 | Foundry 테스트 생성 | `packages/codegen/src/{scenarios,foundry}.ts` — 불변식 4개 + 도달 경로마다 시나리오 1개 (음성 케이스 포함) |
 | 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 | `packages/bpmn/examples/*.bpmn` → `contracts/src/*.sol`. `pnpm test` 가 JS EVM 에서 5개 전부 배포하고 모든 경로를 실행, CI 의 `forge test` 가 같은 시나리오와 불변식을 실행 |
 
+**Phase 3 선행** — `packages/runtime`: 배포·서명 어댑터 인터페이스를 먼저 고정 (가이드 9.5). 쓰기는 항상 시뮬레이션 → 성공한 호출만 전송,
+커스텀 에러는 비전문가 문장으로 번역 (8.4), 소유자 제어는 Safe Transaction Builder 호환 "서명 없는 트랜잭션 패키지" 로 내보낼 수 있다.
+CI 에 Slither 정적 분석(V3)을 추가했다. 코딩 에이전트용 절차는 `CLAUDE.md` 와 `.claude/skills/blockflow/`.
+
 Phase 2 (모델러), 3 (런타임·지갑) 는 `docs/DESIGN.md` 의 로드맵을 따른다.
 
 ## 구조
@@ -41,6 +45,7 @@ packages/
   validator/   @blockflow/validator IR 구조 검사 + Petri net BFS soundness 검사             (7.2)
   codegen/     @blockflow/codegen   IR → Solidity, IR → Foundry 테스트, 조건식 DSL, 시나리오  (6장, 4.4, 7.4)
   bpmn/        @blockflow/bpmn      BPMN XML → IR 파서, 규칙 R1~R12, bc moddle 확장, 예시 5개 (4장, 5.2, 부록 A)
+  runtime/     @blockflow/runtime   어댑터 인터페이스(deploy/simulate/send/watch), 에러 번역, 서명 없는 tx 패키지, 로컬 EVM (8.4, 9.5)
 contracts/
   src/         생성된 컨트랙트 (손으로 고치지 않음)                                         (부록 C)
   test/        생성된 Foundry 테스트(generated/) + 부록 D 참조본                             (부록 D, 7.6)
