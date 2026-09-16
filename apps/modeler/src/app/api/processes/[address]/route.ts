@@ -14,6 +14,7 @@ export function GET(_req: Request, ctx: { params: Promise<{ address: string }> }
       : [];
     return json({
       address: p.address, xml: p.xml, ir: p.ir, owner: p.owner, paused: rec?.paused ?? false, mode: e.mode,
+      version: p.version, supersededBy: p.supersededBy ?? null,
       instances, timeline: rec?.timeline.slice().reverse() ?? [],
     });
   });

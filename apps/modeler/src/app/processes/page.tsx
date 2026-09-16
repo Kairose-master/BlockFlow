@@ -13,6 +13,8 @@ interface Card {
   paused: boolean;
   instanceCount: number;
   active: number;
+  version: number;
+  supersededBy: string | null;
 }
 
 export default function ProcessesPage() {
@@ -48,12 +50,20 @@ export default function ProcessesPage() {
             <div className="flex items-start justify-between">
               <div>
                 <Link href={`/processes/${c.address}`} className="text-lg font-semibold hover:underline">{c.name}</Link>
+                <span className="ml-2 text-xs text-gray-500" data-testid="version">v{c.version}</span>
                 <div className="text-xs text-gray-500 font-mono">{c.id} · {short(c.address)}</div>
               </div>
-              <span className={`text-xs px-2 py-0.5 rounded ${c.paused ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>{c.paused ? "일시정지" : "운영 중"}</span>
+              <span className={`text-xs px-2 py-0.5 rounded ${c.supersededBy ? "bg-gray-100 text-gray-600" : c.paused ? "bg-amber-100 text-amber-800" : "bg-green-100 text-green-800"}`}>
+                {c.supersededBy ? "이전 버전" : c.paused ? "일시정지" : "운영 중"}
+              </span>
             </div>
             <div className="mt-2 text-sm">역할: {c.roles.map((r) => r.label).join(", ")}</div>
             <div className="mt-1 text-sm">진행 중 {c.active}건 / 전체 {c.instanceCount}건</div>
+            {c.supersededBy && (
+              <div className="mt-1 text-xs text-gray-500" data-testid="superseded">
+                새 건은 <Link href={`/processes/${c.supersededBy}`} className="text-blue-600 underline">새 버전</Link>에서 시작해요. 진행 중인 건은 여기서 끝낼 수 있어요.
+              </div>
+            )}
             <div className="mt-3 flex gap-2">
               <Link href={`/processes/${c.address}`} className="btn">보드 열기</Link>
               {user === c.owner && <button className="btn" onClick={() => void togglePause(c)}>{c.paused ? "재개" : "일시정지"}</button>}

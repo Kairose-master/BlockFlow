@@ -27,6 +27,8 @@ interface BoardData {
   ir: IR;
   owner: string;
   paused: boolean;
+  version: number;
+  supersededBy: string | null;
   instances: Instance[];
   timeline: { block: string; seq: number; instance: string; kind: string; text: string; actor?: string }[];
 }
@@ -133,10 +135,12 @@ export function Board({ address }: { address: string }) {
       <div className="flex-1 min-w-0 flex flex-col">
         <div className="px-4 py-2 border-b border-gray-200 bg-white flex items-center gap-3 text-sm">
           <span className="font-semibold text-base">{data.ir.process.name}</span>
+          <span className="text-xs text-gray-500" data-testid="board-version">v{data.version}</span>
           <span className="text-xs text-gray-500 font-mono">{short(data.address)}</span>
+          {data.supersededBy && <a className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 underline" href={`/processes/${data.supersededBy}`}>이전 버전 — 새 버전으로 이동</a>}
           {data.paused && <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">일시정지</span>}
           <span className="flex-1" />
-          <button className="btn btn-primary" onClick={() => { setRoleChoice(Object.fromEntries(data.ir.roles.map((r, i) => [r.key, users[(i + 1) % Math.max(users.length, 1)]?.address ?? ""]))); setCreating(true); }} disabled={data.paused} data-testid="new-instance">
+          <button className="btn btn-primary" onClick={() => { setRoleChoice(Object.fromEntries(data.ir.roles.map((r, i) => [r.key, users[(i + 1) % Math.max(users.length, 1)]?.address ?? ""]))); setCreating(true); }} disabled={data.paused || !!data.supersededBy} data-testid="new-instance">
             새 건 시작
           </button>
         </div>

@@ -9,6 +9,7 @@ export function POST(req: Request, ctx: { params: Promise<{ address: string }> }
     const user = e.user(userHeader(req));
     const { address } = await ctx.params;
     const p = e.process(address);
+    if (p.supersededBy) throw new ApiError(409, `이 버전은 새 버전(v${e.process(p.supersededBy).version})으로 교체됐어요. 새 건은 새 버전에서 시작하세요`);
     const { roles } = (await req.json()) as { roles?: Record<string, string> };
     const accounts = p.ir.roles.map((r) => {
       const a = roles?.[r.key];

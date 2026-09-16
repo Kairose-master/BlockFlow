@@ -32,6 +32,10 @@ export interface DeployedProcess {
   owner: Address;
   deployedBlock: bigint;
   deployedAt: number;
+  /** C6 버전 교체: 같은 process.id 의 몇 번째 배포인가 (1부터) */
+  version: number;
+  /** 새 버전이 배포되면 이 주소가 채워진다. 새 건은 새 버전으로만, 진행 중인 건은 여기서 끝낸다 (기본 정책, 8.2) */
+  supersededBy?: Address;
 }
 
 const DEMO_LABELS = ["운영자 (소유자)", "김신청", "이팀장", "박재무", "최구매", "정공급", "한심사"];
@@ -104,14 +108,28 @@ export class Engine {
     return u;
   }
 
+  /**
+   * C1 배포. 같은 process.id 의 이전 버전(대체되지 않은 것)이 있으면 C6 버전 교체가 된다:
+   * 새 컨트랙트를 배포하고 이전 버전에 supersededBy 를 기록한다. 이전 버전의 진행 중인 건은 그대로 끝낼 수 있다.
+   */
   async deploy(xml: string, compiled: CompiledProcess, ir: IR, owner: DemoUser): Promise<DeployedProcess> {
+    const previous = this.latest(ir.process.id);
     const r = await this.adapter.deploy(compiled, owner.signer);
     const deployedBlock = (r as { block?: bigint }).block ?? 0n;
-    const rec: DeployedProcess = { address: r.address, xml, ir, abi: compiled.abi, owner: owner.address, deployedBlock, deployedAt: Date.now() };
+    const rec: DeployedProcess = {
+      address: r.address, xml, ir, abi: compiled.abi, owner: owner.address, deployedBlock, deployedAt: Date.now(),
+      version: previous ? previous.version + 1 : 1,
+    };
     this.processes.set(r.address, rec);
     this.indexer.track(r.address, ir, compiled.abi, owner.address, deployedBlock);
+    if (previous) previous.supersededBy = r.address;
     this.save();
     return rec;
+  }
+
+  /** process.id 의 현재 버전 (대체되지 않은 배포) */
+  latest(processId: string): DeployedProcess | undefined {
+    return [...this.processes.values()].find((p) => p.ir.process.id === processId && !p.supersededBy);
   }
 
   process(address: string): DeployedProcess {
@@ -145,7 +163,7 @@ export class Engine {
   private load(): void {
     if (!this.statePath || !existsSync(this.statePath)) return;
     const data = JSON.parse(readFileSync(this.statePath, "utf8")) as { processes: (Omit<DeployedProcess, "deployedBlock"> & { deployedBlock: string })[]; indexer: IndexerSnapshot };
-    for (const p of data.processes) this.processes.set(p.address, { ...p, deployedBlock: BigInt(p.deployedBlock) });
+    for (const p of data.processes) this.processes.set(p.address, { ...p, version: p.version ?? 1, deployedBlock: BigInt(p.deployedBlock) });
     this.indexer.restore(data.indexer);
   }
 }

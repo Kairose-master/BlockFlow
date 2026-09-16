@@ -100,3 +100,29 @@ test("권한 없는 사용자는 배포·일시정지를 할 수 없다", async 
   await page.getByTestId("deploy").click();
   await expect(page.getByTestId("deploy-error")).toContainText("소유자만");
 });
+
+test("C6 버전 교체: 같은 프로세스를 다시 배포하면 새 버전이 되고, 이전 버전은 새 건을 받지 않는다", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto("/");
+  await expect(page.getByTestId("user-select")).toBeVisible();
+  await selectUser(page, "운영자 (소유자)");
+  for (let i = 0; i < 2; i++) {
+    await page.goto("/");
+    await page.getByTestId("example-select").selectOption("paper-review");
+    await expect(page.locator('[data-element-id="Task_Submit"]')).toBeVisible();
+    await page.getByTestId("compile").click();
+    await expect(page.getByTestId("compile-status")).toContainText("컴파일 성공", { timeout: 30_000 });
+    await page.getByTestId("deploy").click();
+    await expect(page).toHaveURL(/\/processes\/0x/, { timeout: 30_000 });
+  }
+  await expect(page.getByTestId("board-version")).toHaveText("v2");
+  await page.goto("/processes");
+  const cards = page.getByTestId("process-card").filter({ hasText: "논문 심사" });
+  await expect(cards).toHaveCount(2);
+  await expect(cards.filter({ hasText: "이전 버전" })).toHaveCount(1);
+  await expect(page.getByTestId("superseded")).toBeVisible();
+  // 이전 버전 보드에서는 새 건 시작이 비활성
+  await cards.filter({ hasText: "이전 버전" }).getByRole("link", { name: "보드 열기" }).click();
+  await expect(page.getByTestId("board-version")).toHaveText("v1");
+  await expect(page.getByTestId("new-instance")).toBeDisabled();
+});

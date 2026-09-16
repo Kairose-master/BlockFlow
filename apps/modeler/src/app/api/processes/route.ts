@@ -13,6 +13,7 @@ export function GET() {
       return {
         address: p.address, id: p.ir.process.id, name: p.ir.process.name, roles: p.ir.roles, owner: p.owner, deployedAt: p.deployedAt,
         paused: rec?.paused ?? false, instanceCount: instances.length, active: instances.filter((i) => !i.ended).length,
+        version: p.version, supersededBy: p.supersededBy ?? null,
       };
     });
     return json(list.sort((a, b) => b.deployedAt - a.deployedAt));
@@ -29,6 +30,6 @@ export function POST(req: Request) {
     const c = await compileBpmn(xml);
     if (!c.ok) return json(c, { status: 400 });
     const rec = await e.deploy(xml, { name: c.ir.process.id, abi: c.abi, bytecode: c.bytecode }, c.ir, owner);
-    return json({ address: rec.address, id: rec.ir.process.id, name: rec.ir.process.name });
+    return json({ address: rec.address, id: rec.ir.process.id, name: rec.ir.process.name, version: rec.version });
   });
 }
