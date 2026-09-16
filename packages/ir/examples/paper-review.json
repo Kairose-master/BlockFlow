@@ -1,0 +1,50 @@
+{
+  "version": "bf-ir/0.1",
+  "process": { "id": "PaperReview", "name": "논문 심사" },
+  "roles": [
+    { "key": "Author", "label": "저자", "binding": "static" },
+    { "key": "ReviewerA", "label": "심사자 A", "binding": "static" },
+    { "key": "ReviewerB", "label": "심사자 B", "binding": "static" },
+    { "key": "Editor", "label": "편집자", "binding": "static" }
+  ],
+  "variables": [
+    { "name": "paperHash", "type": "bytes32" },
+    { "name": "scoreA", "type": "uint256" },
+    { "name": "scoreB", "type": "uint256" },
+    { "name": "accepted", "type": "bool" }
+  ],
+  "flows": [
+    { "id": "F1", "bit": 0, "from": "start", "to": "T1" },
+    { "id": "F2", "bit": 1, "from": "T1", "to": "A1" },
+    { "id": "F3", "bit": 2, "from": "A1", "to": "T2" },
+    { "id": "F4", "bit": 3, "from": "A1", "to": "T3" },
+    { "id": "F5", "bit": 4, "from": "T2", "to": "A2" },
+    { "id": "F6", "bit": 5, "from": "T3", "to": "A2" },
+    { "id": "F7", "bit": 6, "from": "A2", "to": "T4" },
+    { "id": "F8", "bit": 7, "from": "T4", "to": "X1" },
+    { "id": "F9", "bit": 8, "from": "X1", "to": "end_accept", "cond": "accepted && scoreA >= 3 && scoreB >= 3" },
+    { "id": "F10", "bit": 9, "from": "X1", "to": "end_reject", "default": true }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "startEvent", "out": ["F1"] },
+    { "id": "T1", "kind": "userTask", "taskId": 1, "name": "submitPaper", "label": "논문 투고",
+      "role": "Author", "inputs": [{ "variable": "paperHash", "label": "논문 파일" }],
+      "in": ["F1"], "out": ["F2"], "tag": "SUBMIT" },
+    { "id": "A1", "kind": "andSplit", "in": ["F2"], "out": ["F3", "F4"] },
+    { "id": "T2", "kind": "userTask", "taskId": 2, "name": "reviewA", "label": "심사 A",
+      "role": "ReviewerA", "inputs": [{ "variable": "scoreA", "label": "점수" }],
+      "in": ["F3"], "out": ["F5"], "tag": "REVIEW_A" },
+    { "id": "T3", "kind": "userTask", "taskId": 3, "name": "reviewB", "label": "심사 B",
+      "role": "ReviewerB", "inputs": [{ "variable": "scoreB", "label": "점수" }],
+      "in": ["F4"], "out": ["F6"], "tag": "REVIEW_B" },
+    { "id": "A2", "kind": "andJoin", "in": ["F5", "F6"], "out": ["F7"] },
+    { "id": "T4", "kind": "userTask", "taskId": 4, "name": "decide", "label": "게재 결정",
+      "role": "Editor", "inputs": [{ "variable": "accepted", "label": "게재 여부" }],
+      "in": ["F7"], "out": ["F8"] },
+    { "id": "X1", "kind": "xorSplit", "in": ["F8"],
+      "branches": [{ "flow": "F9", "cond": "accepted && scoreA >= 3 && scoreB >= 3" }], "default": "F10" },
+    { "id": "end_accept", "kind": "endEvent", "in": ["F9"], "outcome": "completed" },
+    { "id": "end_reject", "kind": "endEvent", "in": ["F10"], "outcome": "rejected", "label": "거절" }
+  ],
+  "silent": ["A1", "A2", "X1", "end_accept", "end_reject"]
+}

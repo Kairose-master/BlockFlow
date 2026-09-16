@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blockflow.dev/schema/bf-ir/0.1.json",
+  "title": "BlockFlow IR (bf-ir/0.1)",
+  "description": "BPMN 서브셋(L0) 을 플랫폼 중립으로 표현한 중간표현. 가이드 5장 참조.",
+  "type": "object",
+  "required": ["version", "process", "roles", "variables", "flows", "nodes", "silent"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": "bf-ir/0.1" },
+    "process": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier", "description": "컨트랙트 이름" },
+        "name": { "type": "string", "minLength": 1 },
+        "sourceCid": { "type": "string" }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "binding"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "$ref": "#/$defs/identifier" },
+          "label": { "type": "string", "minLength": 1 },
+          "binding": { "enum": ["static", "ownerRebind", "open"] }
+        }
+      }
+    },
+    "variables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "$ref": "#/$defs/identifier" },
+          "type": { "enum": ["uint256", "int256", "bool", "address", "bytes32"] },
+          "initial": { "type": "string" }
+        }
+      }
+    },
+    "flows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "required": ["id", "bit", "from", "to"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/identifier" },
+          "bit": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "from": { "type": "string", "minLength": 1 },
+          "to": { "type": "string", "minLength": 1 },
+          "cond": { "type": "string", "minLength": 1 },
+          "default": { "type": "boolean" }
+        },
+        "not": {
+          "description": "cond 와 default 는 동시에 못 쓴다",
+          "properties": { "cond": true, "default": true },
+          "required": ["cond", "default"]
+        }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/startEvent" },
+          { "$ref": "#/$defs/endEvent" },
+          { "$ref": "#/$defs/userTask" },
+          { "$ref": "#/$defs/xorSplit" },
+          { "$ref": "#/$defs/andSplit" },
+          { "$ref": "#/$defs/andJoin" }
+        ]
+      }
+    },
+    "silent": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "flowRefs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "startEvent": {
+      "type": "object",
+      "required": ["id", "kind", "out"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "startEvent" },
+        "out": { "type": "array", "$ref": "#/$defs/flowRefs", "maxItems": 1 }
+      }
+    },
+    "endEvent": {
+      "type": "object",
+      "required": ["id", "kind", "in", "outcome"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "endEvent" },
+        "in": { "$ref": "#/$defs/flowRefs" },
+        "outcome": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 }
+      }
+    },
+    "userTask": {
+      "type": "object",
+      "required": ["id", "kind", "taskId", "name", "label", "role", "inputs", "in", "out"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "userTask" },
+        "taskId": { "type": "integer", "minimum": 1, "maximum": 255 },
+        "name": { "$ref": "#/$defs/identifier" },
+        "label": { "type": "string", "minLength": 1 },
+        "role": { "$ref": "#/$defs/identifier" },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["variable", "label"],
+            "additionalProperties": false,
+            "properties": {
+              "variable": { "$ref": "#/$defs/identifier" },
+              "label": { "type": "string", "minLength": 1 },
+              "required": { "type": "boolean", "default": true }
+            }
+          }
+        },
+        "in": { "$ref": "#/$defs/flowRefs" },
+        "out": { "type": "array", "$ref": "#/$defs/flowRefs", "maxItems": 1 },
+        "tag": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "xorSplit": {
+      "type": "object",
+      "required": ["id", "kind", "in", "branches", "default"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "xorSplit" },
+        "in": { "$ref": "#/$defs/flowRefs" },
+        "branches": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["flow", "cond"],
+            "additionalProperties": false,
+            "properties": {
+              "flow": { "type": "string", "minLength": 1 },
+              "cond": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "default": { "type": "string", "minLength": 1 }
+      }
+    },
+    "andSplit": {
+      "type": "object",
+      "required": ["id", "kind", "in", "out"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "andSplit" },
+        "in": { "$ref": "#/$defs/flowRefs" },
+        "out": { "type": "array", "$ref": "#/$defs/flowRefs", "minItems": 2 }
+      }
+    },
+    "andJoin": {
+      "type": "object",
+      "required": ["id", "kind", "in", "out"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "andJoin" },
+        "in": { "type": "array", "$ref": "#/$defs/flowRefs", "minItems": 2 },
+        "out": { "type": "array", "$ref": "#/$defs/flowRefs", "maxItems": 1 }
+      }
+    }
+  }
+}

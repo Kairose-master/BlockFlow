@@ -1,0 +1,13 @@
+    {{doc}}
+    function {{name}}({{params}})
+        external
+        whenNotPaused
+        onlyRole(id, {{roleConst}})
+    {
+        _require(id, {{inMask}}, {{taskConst}});
+{{#sets}}
+        vars[id].{{variable}} = {{variable}};
+{{/sets}}
+        _fire(id, {{inMask}}, {{outMask}}, {{taskConst}});
+    }
+

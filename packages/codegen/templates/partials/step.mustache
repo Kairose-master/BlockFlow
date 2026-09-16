@@ -1,0 +1,30 @@
+            // {{comment}}
+{{#xor}}
+            if (m & {{inMask}} != 0) {
+                m &= ~{{inMask}};
+                m |= {{ternary}};
+                progressed = true;
+            }
+{{/xor}}
+{{#andSplit}}
+            if (m & {{inMask}} != 0) {
+                m &= ~{{inMask}};
+                m |= {{outMask}};
+                progressed = true;
+            }
+{{/andSplit}}
+{{#andJoin}}
+            if (m & {{inMask}} == {{inMask}}) {
+                m &= ~{{inMask}};
+                m |= {{outMask}};
+                progressed = true;
+            }
+{{/andJoin}}
+{{#end}}
+            if (m & {{inMask}} != 0) {
+                m &= ~{{inMask}};
+                instances[id].ended = true;
+                emit InstanceEnded(id, {{completed}});
+                progressed = true;
+            }
+{{/end}}

@@ -1,0 +1,49 @@
+{
+  "version": "bf-ir/0.1",
+  "process": { "id": "PurchaseOrder", "name": "구매 승인" },
+  "roles": [
+    { "key": "Requester", "label": "요청자", "binding": "static" },
+    { "key": "Manager", "label": "팀장", "binding": "static" },
+    { "key": "Buyer", "label": "구매 담당", "binding": "static" },
+    { "key": "Supplier", "label": "공급사", "binding": "static" }
+  ],
+  "variables": [
+    { "name": "itemHash", "type": "bytes32" },
+    { "name": "price", "type": "uint256" },
+    { "name": "approved", "type": "bool" },
+    { "name": "deliveryHash", "type": "bytes32" }
+  ],
+  "flows": [
+    { "id": "F1", "bit": 0, "from": "start", "to": "T1" },
+    { "id": "F2", "bit": 1, "from": "T1", "to": "X1" },
+    { "id": "F3", "bit": 2, "from": "X1", "to": "T2", "cond": "price > 10000" },
+    { "id": "F4", "bit": 3, "from": "X1", "to": "T3", "default": true },
+    { "id": "F5", "bit": 4, "from": "T2", "to": "X2" },
+    { "id": "F6", "bit": 5, "from": "X2", "to": "T3", "cond": "approved" },
+    { "id": "F7", "bit": 6, "from": "X2", "to": "end_rej", "default": true },
+    { "id": "F8", "bit": 7, "from": "T3", "to": "T4" },
+    { "id": "F9", "bit": 8, "from": "T4", "to": "end_ok" }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "startEvent", "out": ["F1"] },
+    { "id": "T1", "kind": "userTask", "taskId": 1, "name": "request", "label": "구매 요청",
+      "role": "Requester",
+      "inputs": [{ "variable": "itemHash", "label": "품목" }, { "variable": "price", "label": "금액" }],
+      "in": ["F1"], "out": ["F2"] },
+    { "id": "X1", "kind": "xorSplit", "in": ["F2"],
+      "branches": [{ "flow": "F3", "cond": "price > 10000" }], "default": "F4" },
+    { "id": "T2", "kind": "userTask", "taskId": 2, "name": "approve", "label": "승인",
+      "role": "Manager", "inputs": [{ "variable": "approved", "label": "승인 여부" }],
+      "in": ["F3"], "out": ["F5"] },
+    { "id": "X2", "kind": "xorSplit", "in": ["F5"],
+      "branches": [{ "flow": "F6", "cond": "approved" }], "default": "F7" },
+    { "id": "T3", "kind": "userTask", "taskId": 3, "name": "order", "label": "발주",
+      "role": "Buyer", "inputs": [], "in": ["F4", "F6"], "out": ["F8"] },
+    { "id": "T4", "kind": "userTask", "taskId": 4, "name": "confirmDelivery", "label": "납품 확인",
+      "role": "Supplier", "inputs": [{ "variable": "deliveryHash", "label": "납품서" }],
+      "in": ["F8"], "out": ["F9"], "tag": "DELIVERY" },
+    { "id": "end_ok", "kind": "endEvent", "in": ["F9"], "outcome": "completed" },
+    { "id": "end_rej", "kind": "endEvent", "in": ["F7"], "outcome": "rejected", "label": "반려" }
+  ],
+  "silent": ["X1", "X2", "end_ok", "end_rej"]
+}

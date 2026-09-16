@@ -1,0 +1,51 @@
+{
+  "version": "bf-ir/0.1",
+  "process": { "id": "ExpenseApproval", "name": "경비 승인" },
+  "roles": [
+    { "key": "Requester", "label": "신청자", "binding": "static" },
+    { "key": "Manager", "label": "팀장", "binding": "static" },
+    { "key": "Finance", "label": "재무", "binding": "static" }
+  ],
+  "variables": [
+    { "name": "amount", "type": "uint256" },
+    { "name": "approved", "type": "bool" },
+    { "name": "receiptHash", "type": "bytes32" }
+  ],
+  "flows": [
+    { "id": "F1", "bit": 0, "from": "start", "to": "T1" },
+    { "id": "F2", "bit": 1, "from": "T1", "to": "X1" },
+    { "id": "F3", "bit": 2, "from": "X1", "to": "T2", "cond": "amount > 1000" },
+    { "id": "F4", "bit": 3, "from": "X1", "to": "A1", "default": true },
+    { "id": "F5", "bit": 4, "from": "T2", "to": "X2" },
+    { "id": "F6", "bit": 5, "from": "A1", "to": "T3" },
+    { "id": "F7", "bit": 6, "from": "A1", "to": "T4" },
+    { "id": "F8", "bit": 7, "from": "T3", "to": "A2" },
+    { "id": "F9", "bit": 8, "from": "T4", "to": "A2" },
+    { "id": "F10", "bit": 9, "from": "A2", "to": "end_ok" },
+    { "id": "F11", "bit": 10, "from": "X2", "to": "A1", "cond": "approved" },
+    { "id": "F12", "bit": 11, "from": "X2", "to": "end_rej", "default": true }
+  ],
+  "nodes": [
+    { "id": "start", "kind": "startEvent", "out": ["F1"] },
+    { "id": "T1", "kind": "userTask", "taskId": 1, "name": "submit", "label": "경비 신청",
+      "role": "Requester", "inputs": [{ "variable": "amount", "label": "금액" }],
+      "in": ["F1"], "out": ["F2"] },
+    { "id": "X1", "kind": "xorSplit", "in": ["F2"],
+      "branches": [{ "flow": "F3", "cond": "amount > 1000" }], "default": "F4" },
+    { "id": "T2", "kind": "userTask", "taskId": 2, "name": "approve", "label": "승인",
+      "role": "Manager", "inputs": [{ "variable": "approved", "label": "승인 여부" }],
+      "in": ["F3"], "out": ["F5"] },
+    { "id": "X2", "kind": "xorSplit", "in": ["F5"],
+      "branches": [{ "flow": "F11", "cond": "approved" }], "default": "F12" },
+    { "id": "A1", "kind": "andSplit", "in": ["F4", "F11"], "out": ["F6", "F7"] },
+    { "id": "T3", "kind": "userTask", "taskId": 3, "name": "pay", "label": "지급",
+      "role": "Finance", "inputs": [], "in": ["F6"], "out": ["F8"] },
+    { "id": "T4", "kind": "userTask", "taskId": 4, "name": "uploadReceipt", "label": "영수증 제출",
+      "role": "Requester", "inputs": [{ "variable": "receiptHash", "label": "영수증 파일" }],
+      "in": ["F7"], "out": ["F9"], "tag": "RECEIPT" },
+    { "id": "A2", "kind": "andJoin", "in": ["F8", "F9"], "out": ["F10"] },
+    { "id": "end_ok", "kind": "endEvent", "in": ["F10"], "outcome": "completed" },
+    { "id": "end_rej", "kind": "endEvent", "in": ["F12"], "outcome": "rejected", "label": "반려" }
+  ],
+  "silent": ["X1", "X2", "A1", "A2", "end_ok", "end_rej"]
+}

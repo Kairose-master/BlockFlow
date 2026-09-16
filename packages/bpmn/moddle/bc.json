@@ -1,0 +1,53 @@
+{
+  "name": "BlockFlow",
+  "uri": "http://blockflow.dev/schema/bpmn/bc",
+  "prefix": "bc",
+  "xml": { "tagAlias": "lowerCase" },
+  "types": [
+    {
+      "name": "Variable",
+      "properties": [
+        { "name": "name", "isAttr": true, "type": "String" },
+        { "name": "type", "isAttr": true, "type": "String" },
+        { "name": "initial", "isAttr": true, "type": "String" }
+      ]
+    },
+    {
+      "name": "Variables",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "values", "isMany": true, "type": "Variable" }
+      ]
+    },
+    {
+      "name": "Input",
+      "properties": [
+        { "name": "variable", "isAttr": true, "type": "String" },
+        { "name": "label", "isAttr": true, "type": "String" },
+        { "name": "required", "isAttr": true, "type": "Boolean", "default": true }
+      ]
+    },
+    {
+      "name": "Inputs",
+      "superClass": ["Element"],
+      "properties": [
+        { "name": "values", "isMany": true, "type": "Input" }
+      ]
+    },
+    {
+      "name": "LaneExt",
+      "extends": ["bpmn:Lane"],
+      "properties": [
+        { "name": "roleKey", "isAttr": true, "type": "String" },
+        { "name": "bindingMode", "isAttr": true, "type": "String", "default": "static" }
+      ]
+    },
+    {
+      "name": "TaskExt",
+      "extends": ["bpmn:UserTask"],
+      "properties": [
+        { "name": "taskId", "isAttr": true, "type": "Integer" }
+      ]
+    }
+  ]
+}

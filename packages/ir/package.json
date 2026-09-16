@@ -1,0 +1,12 @@
+{
+  "name": "@blockflow/ir",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BlockFlow 중간표현(IR) 타입, JSON Schema, 예시",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./schema/bf-ir.schema.json"
+  }
+}

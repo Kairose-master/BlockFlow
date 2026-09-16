@@ -1,0 +1,48 @@
+/**
+ * Phase 0 완료 기준 (가이드 11장): 템플릿에서 재생성한 컨트랙트가 부록 C(= contracts/src/ExpenseApproval.sol)
+ * 와 diff 0 이고, solc 0.8.37 에서 경고 0 으로 컴파일된다.
+ */
+import { describe, expect, it } from "vitest";
+import { generate } from "../src/index.js";
+import { compile, solcVersion } from "./helpers/solc.js";
+import { exampleFiles, loadExample, readContract } from "./helpers/examples.js";
+
+describe("codegen 스냅샷", () => {
+  it("solc 0.8.37 을 쓴다", () => {
+    expect(solcVersion()).toMatch(/^0\.8\.37/);
+  });
+
+  for (const file of exampleFiles()) {
+    const ir = loadExample(file);
+
+    it(`${file} → contracts/src/${ir.process.id}.sol 과 diff 0`, () => {
+      expect(generate(ir)).toBe(readContract(ir.process.id));
+    });
+
+    it(`${file} 생성 코드가 경고 0 으로 컴파일된다`, () => {
+      const c = compile(generate(ir), ir.process.id);
+      expect(c.diagnostics).toEqual([]);
+      expect(c.bytecode.length).toBeGreaterThan(2);
+    });
+
+    it(`${file} 생성은 결정적이다`, () => {
+      expect(generate(ir)).toBe(generate(ir));
+    });
+  }
+
+  it("ExpenseApproval 바이트코드 크기가 가이드 6.6 (3,960 B) 과 같다", () => {
+    const c = compile(readContract("ExpenseApproval"), "ExpenseApproval");
+    expect((c.bytecode.length - 2) / 2).toBe(3960);
+  });
+
+  it("검증 실패 IR 은 생성하지 않는다", () => {
+    const ir = loadExample("expense-approval.json");
+    // AND join 의 한쪽 입력을 끊어 데드락을 만든다.
+    const broken = structuredClone(ir);
+    const t4 = broken.nodes.find((n) => n.id === "T4");
+    if (t4?.kind !== "userTask") throw new Error("T4");
+    t4.out = ["F9"];
+    broken.flows = broken.flows.map((f) => (f.id === "F9" ? { ...f, to: "T4" } : f));
+    expect(() => generate(broken)).toThrow();
+  });
+});
