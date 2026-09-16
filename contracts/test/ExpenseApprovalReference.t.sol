@@ -6,7 +6,7 @@ import "../src/ExpenseApproval.sol";
 
 /// @dev 가이드 부록 D — 생성기가 IR 에서 만들어 낼 불변식 테스트의 손으로 쓴 참조본.
 ///      Handler 는 무작위 역할 계정이 무작위 태스크를 호출한다 (거부는 정상: fail_on_revert = false).
-contract Handler is Test {
+contract ExpenseApprovalRefHandler is Test {
     ExpenseApproval p;
     address[3] acc;
 
@@ -44,15 +44,15 @@ contract Handler is Test {
     }
 }
 
-contract ExpenseApprovalInvariants is Test {
+contract ExpenseApprovalRefInvariants is Test {
     ExpenseApproval p;
-    Handler h;
+    ExpenseApprovalRefHandler h;
     uint256 constant ALL_FLOWS = (1 << 12) - 1; // IR flows 집합 (생성기가 채움)
 
     function setUp() public {
         address[3] memory acc = [address(0xA1), address(0xB2), address(0xC3)];
         p = new ExpenseApproval(address(this));
-        h = new Handler(p, acc);
+        h = new ExpenseApprovalRefHandler(p, acc);
         targetContract(address(h));
     }
 
@@ -93,7 +93,7 @@ contract ExpenseApprovalInvariants is Test {
 }
 
 /// @dev 가이드 7.6 의 17개 트랜잭션 시나리오 (V2 BFS 도달 경로 = 승인 / 소액 우회 / 반려).
-contract ExpenseApprovalScenarios is Test {
+contract ExpenseApprovalRefScenarios is Test {
     ExpenseApproval p;
     address owner = address(0x01);
     address requester = address(0xA1);

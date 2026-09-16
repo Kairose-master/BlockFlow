@@ -15,6 +15,12 @@ export function checkStructure(ir: IR): string[] {
 
   if (ir.version !== "bf-ir/0.1") problems.push(`지원하지 않는 IR 버전: ${ir.version}`);
 
+  // 생성 코드의 지역 변수/매개변수와 충돌하는 변수 이름
+  const RESERVED_VARS = new Set(["id", "m", "v", "inst", "bits", "roles", "roleAccounts", "i", "p", "consume", "produce", "taskId", "inFlow"]);
+  for (const v of ir.variables) {
+    if (RESERVED_VARS.has(v.name)) problems.push(`변수 이름 '${v.name}' 은 생성 코드에서 예약돼 있음`);
+  }
+
   for (const n of ir.nodes) {
     if (nodeIds.has(n.id)) problems.push(`노드 id 중복: ${n.id}`);
     nodeIds.add(n.id);

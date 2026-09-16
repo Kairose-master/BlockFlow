@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  구매 승인. 레인: 요청자 / 팀장 / 구매 담당 / 공급사.
+  [시작] → (요청자) 구매 요청{itemHash, price} → ◇ price>10000? ─yes→ (팀장) 승인{approved} → ◇ approved? ─yes→ ◇합류 → (구매) 발주
+                                                └default────────────────────────────────────────→ ◇합류
+                                                                                       no(default) → [종료:반려]
+  (구매) 발주 → (공급사) 납품 확인{deliveryHash} → [종료:완료]
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_PurchaseOrder" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="PurchaseOrder" name="구매 승인" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="itemHash" type="bytes32"/>
+        <bc:variable name="price" type="uint256"/>
+        <bc:variable name="approved" type="bool"/>
+        <bc:variable name="deliveryHash" type="bytes32"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Requester" name="요청자" bc:roleKey="Requester">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Price</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Manager" name="팀장" bc:roleKey="Manager">
+        <bpmn:flowNodeRef>Task_Approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Buyer" name="구매 담당" bc:roleKey="Buyer">
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Order</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Supplier" name="공급사" bc:roleKey="Supplier">
+        <bpmn:flowNodeRef>Task_Deliver</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Done</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Request" name="구매 요청" bc:fn="request">
+      <bpmn:extensionElements>
+        <bc:inputs>
+          <bc:input variable="itemHash" label="품목"/>
+          <bc:input variable="price" label="금액"/>
+        </bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Price" name="고액인가?" default="Flow_4">
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Approve" name="승인" bc:fn="approve">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="approved" label="승인 여부"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="승인됐나?" default="Flow_7">
+      <bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_Join" name="합류">
+      <bpmn:incoming>Flow_4</bpmn:incoming><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_Join</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Order" name="발주" bc:fn="order">
+      <bpmn:incoming>Flow_Join</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Deliver" name="납품 확인" bc:fn="confirmDelivery" bc:tag="DELIVERY">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="deliveryHash" label="납품서"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Done" name="완료"><bpmn:incoming>Flow_9</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="반려" bc:outcome="rejected"><bpmn:incoming>Flow_7</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Request"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Request" targetRef="Gateway_Price"/>
+    <bpmn:sequenceFlow id="Flow_3" name="예" sourceRef="Gateway_Price" targetRef="Task_Approve">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">price &gt; 10000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_4" name="아니오" sourceRef="Gateway_Price" targetRef="Gateway_Join"/>
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_Approve" targetRef="Gateway_Approved"/>
+    <bpmn:sequenceFlow id="Flow_6" name="예" sourceRef="Gateway_Approved" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">approved</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_7" name="아니오" sourceRef="Gateway_Approved" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_Order" targetRef="Task_Deliver"/>
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Task_Deliver" targetRef="End_Done"/>
+    <bpmn:sequenceFlow id="Flow_Join" sourceRef="Gateway_Join" targetRef="Task_Order"/>
+  </bpmn:process>
+</bpmn:definitions>

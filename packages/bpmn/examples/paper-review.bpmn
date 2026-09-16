@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  논문 심사. 레인: 저자 / 심사자 A / 심사자 B / 편집자.
+  [시작] → (저자) 논문 투고{paperHash} → ◆분기 → (심사자 A) 심사{scoreA} ┐
+                                              └→ (심사자 B) 심사{scoreB} ┴→ ◆합류 → (편집자) 게재 결정{accepted}
+  → ◇ accepted && scoreA>=3 && scoreB>=3 ? ─yes→ [종료:게재]   default → [종료:거절]
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_PaperReview" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="PaperReview" name="논문 심사" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="paperHash" type="bytes32"/>
+        <bc:variable name="scoreA" type="uint256"/>
+        <bc:variable name="scoreB" type="uint256"/>
+        <bc:variable name="accepted" type="bool"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Author" name="저자" bc:roleKey="Author">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Submit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Fork</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ReviewerA" name="심사자 A" bc:roleKey="ReviewerA">
+        <bpmn:flowNodeRef>Task_ReviewA</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_ReviewerB" name="심사자 B" bc:roleKey="ReviewerB">
+        <bpmn:flowNodeRef>Task_ReviewB</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Editor" name="편집자" bc:roleKey="Editor">
+        <bpmn:flowNodeRef>Gateway_Sync</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Decide</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Submit" name="논문 투고" bc:fn="submitPaper" bc:tag="SUBMIT">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="paperHash" label="논문 파일"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_Fork" name="동시 심사">
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_ReviewA" name="심사 A" bc:fn="reviewA" bc:tag="REVIEW_A">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="scoreA" label="점수"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_ReviewB" name="심사 B" bc:fn="reviewB" bc:tag="REVIEW_B">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="scoreB" label="점수"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_Sync" name="심사 완료">
+      <bpmn:incoming>Flow_5</bpmn:incoming><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_Decide" name="게재 결정" bc:fn="decide">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="accepted" label="게재 여부"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_7</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Accepted" name="게재?" default="Flow_10">
+      <bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_9</bpmn:outgoing><bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Accepted" name="게재"><bpmn:incoming>Flow_9</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="거절" bc:outcome="rejected"><bpmn:incoming>Flow_10</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Submit"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Submit" targetRef="Gateway_Fork"/>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Gateway_Fork" targetRef="Task_ReviewA"/>
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Gateway_Fork" targetRef="Task_ReviewB"/>
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_ReviewA" targetRef="Gateway_Sync"/>
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_ReviewB" targetRef="Gateway_Sync"/>
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Gateway_Sync" targetRef="Task_Decide"/>
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_Decide" targetRef="Gateway_Accepted"/>
+    <bpmn:sequenceFlow id="Flow_9" name="예" sourceRef="Gateway_Accepted" targetRef="End_Accepted">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">accepted &amp;&amp; scoreA &gt;= 3 &amp;&amp; scoreB &gt;= 3</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_10" name="아니오" sourceRef="Gateway_Accepted" targetRef="End_Rejected"/>
+  </bpmn:process>
+</bpmn:definitions>

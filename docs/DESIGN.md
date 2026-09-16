@@ -85,7 +85,7 @@ term := variable | integer | "true" | "false" | "role(" identifier ")" ;
 타입 검사: uint256/int256 은 정수와만, bool 은 `==`/`!=`/단독, address 는 `role(...)`/리터럴과만. 나눗셈·곱셈(산술 전반)은 L0 제외.
 컴파일: `amount > 1000` → `v.amount > 1000`. UI 는 "만약 [금액] 이 [보다 큼] [1000]" 식 자연어 빌더.
 
-### 정형성 규칙 R1~R12 (클라이언트 즉시 검사, Phase 1 파서에서 구현)
+### 정형성 규칙 R1~R12 (클라이언트 즉시 검사) — `packages/bpmn/src/parse.ts`
 
 | # | 규칙 | 비전문가용 메시지 |
 |---|---|---|
@@ -150,10 +150,10 @@ string 입력은 받지 않는다 (클라이언트가 keccak/IPFS CID 로 bytes3
 
 | 단계 | 시점 | 도구 | 상태 |
 |---|---|---|---|
-| V1 구조 규칙 R1~R12 | 그리는 중 (클라) | 자체 TS | Phase 1 (`packages/bpmn`) |
+| V1 구조 규칙 R1~R12 | 그리는 중 (클라) | 자체 TS | **구현됨** `packages/bpmn/src/parse.ts` (`lintBpmn`) |
 | V2 Soundness | 저장/컴파일 요청 시 | 자체 Petri net BFS | **구현됨** `packages/validator/src/soundness.ts` |
 | V3 정적 분석 | 컴파일 후 | solc + Slither 0.11.6 + SMTChecker(CHC) | Phase 1 |
-| V4 자동 테스트 | 배포 전 | Foundry 1.8 invariant + 시나리오 | 참조본 `contracts/test` (생성기는 Phase 1) |
+| V4 자동 테스트 | 배포 전 | Foundry 1.8 invariant + 시나리오 | **구현됨** `packages/codegen/src/{scenarios,foundry}.ts` → `contracts/test/generated` |
 | V5 미리보기 | 언제나 | bpmn-js-token-simulation 0.40 | Phase 2 |
 
 V2 알고리즘: 상태 = marking 하나 (1-safe + 비트맵). 조건식은 비결정적 선택으로 추상화. BFS 로 (a) 1-safe 위반, (b) 데드락, (c) 종료 시 marking ≠ 0 ("남은 토큰"), (d) dead task 를 검출.
@@ -186,7 +186,7 @@ viem 2.56 / wagmi 3.7 · permissionless.js 0.4 · Privy 3.43 / Base Account 2.5 
 | Phase | 주 | 산출물 | 완료 기준 |
 |---|---|---|---|
 | **0 골격** | 1–2 | 리포 구조, IR 스키마, 예시 IR 3개, 6.6 컨트랙트 템플릿 재생성 diff 0 | `pnpm test` 스냅샷 통과 — **완료** |
-| 1 컴파일러 | 3–5 | bpmn-moddle 파서 → IR, V1 규칙, V2 BFS, Mustache 생성기, solc 컴파일, Foundry 테스트 생성 | 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 |
+| **1 컴파일러** | 3–5 | bpmn-moddle 파서 → IR, V1 규칙, V2 BFS, Mustache 생성기, solc 컴파일, Foundry 테스트 생성 | 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 — **완료** (`packages/bpmn/examples`, JS EVM + forge) |
 | 2 모델러 | 6–8 | 팔레트 제한, bc 속성 패널, 조건 빌더, 토큰 시뮬레이션, 한국어 오류 메시지 | 비개발자 3명이 설명 없이 "경비 승인" 을 그려 컴파일 통과 |
 | 3 런타임 | 9–12 | 배포 어댑터, 인덱서, 4개 화면, 임베디드 지갑 + 스폰서 | 3인 3역할로 인스턴스 10건 완주, 가스 0원 체감 |
 | 4 확장 | 13+ | L1 요소, 버전 교체 투표, 신용서비스 프리셋, 논문화 | — |

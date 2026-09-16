@@ -2,9 +2,19 @@
   "name": "@blockflow/bpmn",
   "version": "0.1.0",
   "private": true,
-  "description": "BPMN 서브셋: bc moddle 확장 (부록 A). 파서(BPMN XML → IR)는 Phase 1 에서 추가.",
+  "description": "BPMN 서브셋(L0): bc moddle 확장, BPMN XML → IR 파서, 구조 규칙 R1~R12",
   "type": "module",
+  "main": "src/index.ts",
   "exports": {
+    ".": "./src/index.ts",
     "./moddle/bc.json": "./moddle/bc.json"
+  },
+  "dependencies": {
+    "@blockflow/codegen": "workspace:*",
+    "@blockflow/ir": "workspace:*",
+    "bpmn-moddle": "^10.2.0"
+  },
+  "devDependencies": {
+    "@blockflow/validator": "workspace:*"
   }
 }

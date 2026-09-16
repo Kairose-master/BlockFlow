@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  경비 승인 (가이드 6.6). 레인: 신청자 / 팀장 / 재무.
+  [시작] → (신청자) 경비 신청{amount}
+        → ◇X1 amount>1000? ─yes→ (팀장) 승인{approved} → ◇X2 approved? ─yes→ ◇J1(합류) → ◆A1
+                           └default──────────────────────────────────────→ ◇J1
+                                                                 no(default) → [종료:반려]
+        ◆A1 ─→ (재무) 지급 ──────────→ ◆A2 → [종료:완료]
+            └→ (신청자) 영수증 제출{receiptHash} ┘
+  플로우는 문서 순서로 F1..F12 비트를 받는다. XOR 합류 J1 은 IR 에서 사라지고 F4/F11 이 A1 으로 직결된다.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_ExpenseApproval" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="ExpenseApproval" name="경비 승인" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="amount" type="uint256"/>
+        <bc:variable name="approved" type="bool"/>
+        <bc:variable name="receiptHash" type="bytes32"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Requester" name="신청자" bc:roleKey="Requester">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Submit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Amount</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Fork</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Receipt</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Sync</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Done</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Manager" name="팀장" bc:roleKey="Manager">
+        <bpmn:flowNodeRef>Task_Approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finance" name="재무" bc:roleKey="Finance">
+        <bpmn:flowNodeRef>Task_Pay</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_1" name="시작">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Task_Submit" name="경비 신청" bc:taskId="1" bc:fn="submit">
+      <bpmn:extensionElements>
+        <bc:inputs><bc:input variable="amount" label="금액"/></bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Amount" name="고액인가?" default="Flow_4">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3</bpmn:outgoing>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Approve" name="승인" bc:taskId="2" bc:fn="approve">
+      <bpmn:extensionElements>
+        <bc:inputs><bc:input variable="approved" label="승인 여부"/></bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Join" name="합류">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:incoming>Flow_11</bpmn:incoming>
+      <bpmn:outgoing>Flow_Join</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_Fork" name="동시 진행">
+      <bpmn:incoming>Flow_Join</bpmn:incoming>
+      <bpmn:outgoing>Flow_6</bpmn:outgoing>
+      <bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_Pay" name="지급" bc:taskId="3" bc:fn="pay">
+      <bpmn:incoming>Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Receipt" name="영수증 제출" bc:taskId="4" bc:fn="uploadReceipt" bc:tag="RECEIPT">
+      <bpmn:extensionElements>
+        <bc:inputs><bc:input variable="receiptHash" label="영수증 파일"/></bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_7</bpmn:incoming>
+      <bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_Sync" name="모두 끝나면">
+      <bpmn:incoming>Flow_8</bpmn:incoming>
+      <bpmn:incoming>Flow_9</bpmn:incoming>
+      <bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:endEvent id="EndEvent_Done" name="완료">
+      <bpmn:incoming>Flow_10</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="승인됐나?" default="Flow_12">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Flow_11</bpmn:outgoing>
+      <bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_Rejected" name="반려" bc:outcome="rejected">
+      <bpmn:incoming>Flow_12</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_Submit"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Submit" targetRef="Gateway_Amount"/>
+    <bpmn:sequenceFlow id="Flow_3" name="예" sourceRef="Gateway_Amount" targetRef="Task_Approve">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">amount &gt; 1000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_4" name="아니오" sourceRef="Gateway_Amount" targetRef="Gateway_Join"/>
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_Approve" targetRef="Gateway_Approved"/>
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Gateway_Fork" targetRef="Task_Pay"/>
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Gateway_Fork" targetRef="Task_Receipt"/>
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_Pay" targetRef="Gateway_Sync"/>
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Task_Receipt" targetRef="Gateway_Sync"/>
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Gateway_Sync" targetRef="EndEvent_Done"/>
+    <bpmn:sequenceFlow id="Flow_11" name="예" sourceRef="Gateway_Approved" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">approved</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_12" name="아니오" sourceRef="Gateway_Approved" targetRef="EndEvent_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_Join" sourceRef="Gateway_Join" targetRef="Gateway_Fork"/>
+  </bpmn:process>
+</bpmn:definitions>

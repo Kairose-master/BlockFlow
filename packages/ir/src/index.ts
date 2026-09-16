@@ -19,6 +19,8 @@ export interface ProcessMeta {
   name: string;
   /** 원본 BPMN 의 IPFS CID (선택). */
   sourceCid?: string;
+  /** 원본 bpmn:Process 의 id. */
+  bpmnId?: string;
 }
 
 export interface Role {
@@ -45,6 +47,8 @@ export interface Flow {
   cond?: string;
   /** XOR 분기의 기본 플로우. */
   default?: boolean;
+  /** 원본 bpmn:SequenceFlow id (UI 가 다이어그램에 marking 을 칠할 때 사용). */
+  bpmnId?: string;
 }
 
 export interface TaskInput {
@@ -56,12 +60,16 @@ export interface TaskInput {
 export interface StartEventNode {
   id: string;
   kind: "startEvent";
+  /** 원본 BPMN 요소 id. */
+  bpmnId?: string;
   out: string[];
 }
 
 export interface EndEventNode {
   id: string;
   kind: "endEvent";
+  /** 원본 BPMN 요소 id. */
+  bpmnId?: string;
   in: string[];
   /** "completed" 는 정상 종료. 그 외 문자열(예: "rejected")은 비정상 종료. */
   outcome: string;
@@ -72,6 +80,8 @@ export interface EndEventNode {
 export interface UserTaskNode {
   id: string;
   kind: "userTask";
+  /** 원본 BPMN 요소 id. */
+  bpmnId?: string;
   /** 이벤트/UI 용 정수 ID (1..). */
   taskId: number;
   /** 함수 이름 (Solidity 식별자). */
@@ -94,6 +104,8 @@ export interface XorBranch {
 export interface XorSplitNode {
   id: string;
   kind: "xorSplit";
+  /** 원본 BPMN 요소 id. */
+  bpmnId?: string;
   in: string[];
   branches: XorBranch[];
   default: string;
@@ -102,6 +114,8 @@ export interface XorSplitNode {
 export interface AndSplitNode {
   id: string;
   kind: "andSplit";
+  /** 원본 BPMN 요소 id. */
+  bpmnId?: string;
   /** 여러 개면 "어느 하나라도 있으면 소비" (1-safe 전제). */
   in: string[];
   out: string[];
@@ -110,6 +124,8 @@ export interface AndSplitNode {
 export interface AndJoinNode {
   id: string;
   kind: "andJoin";
+  /** 원본 BPMN 요소 id. */
+  bpmnId?: string;
   in: string[];
   out: string[];
 }

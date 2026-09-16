@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  공급망 (中山大 사례 세트). 레인: 공급사 / 운송사 / 구매자 / 재무.
+  [시작] → (공급사) 출하{shipmentHash, qty} → (운송사) 운송 완료{trackingHash} → (구매자) 검수{accepted, receivedQty}
+        → ◇ accepted && receivedQty >= qty ? ─yes→ (재무) 대금 지급{paymentRef} → [종료:정산]
+                                              default → (구매자) 이의 제기{claimHash} → [종료:분쟁]
+  변수끼리 비교(receivedQty >= qty)와 bytes32 만 입력받는 태스크를 포함한다.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_SupplyChain" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="SupplyChain" name="공급망 납품" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="shipmentHash" type="bytes32"/>
+        <bc:variable name="qty" type="uint256"/>
+        <bc:variable name="trackingHash" type="bytes32"/>
+        <bc:variable name="accepted" type="bool"/>
+        <bc:variable name="receivedQty" type="uint256"/>
+        <bc:variable name="paymentRef" type="bytes32"/>
+        <bc:variable name="claimHash" type="bytes32"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Supplier" name="공급사" bc:roleKey="Supplier">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Ship</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Carrier" name="운송사" bc:roleKey="Carrier">
+        <bpmn:flowNodeRef>Task_Deliver</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Buyer" name="구매자" bc:roleKey="Buyer">
+        <bpmn:flowNodeRef>Task_Inspect</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Ok</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Claim</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Disputed</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Finance" name="재무" bc:roleKey="Finance">
+        <bpmn:flowNodeRef>Task_Pay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Settled</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Ship" name="출하" bc:fn="ship">
+      <bpmn:extensionElements>
+        <bc:inputs>
+          <bc:input variable="shipmentHash" label="출하 명세"/>
+          <bc:input variable="qty" label="수량"/>
+        </bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Deliver" name="운송 완료" bc:fn="deliver">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="trackingHash" label="운송장"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Inspect" name="검수" bc:fn="inspect">
+      <bpmn:extensionElements>
+        <bc:inputs>
+          <bc:input variable="accepted" label="합격 여부"/>
+          <bc:input variable="receivedQty" label="수령 수량"/>
+        </bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Ok" name="검수 통과?" default="Flow_6">
+      <bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing><bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Pay" name="대금 지급" bc:fn="pay">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="paymentRef" label="지급 증빙"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Claim" name="이의 제기" bc:fn="raiseClaim" bc:tag="CLAIM">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="claimHash" label="이의 내용"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Settled" name="정산"><bpmn:incoming>Flow_7</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Disputed" name="분쟁" bc:outcome="disputed"><bpmn:incoming>Flow_8</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Ship"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Ship" targetRef="Task_Deliver"/>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_Deliver" targetRef="Task_Inspect"/>
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_Inspect" targetRef="Gateway_Ok"/>
+    <bpmn:sequenceFlow id="Flow_5" name="예" sourceRef="Gateway_Ok" targetRef="Task_Pay">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">accepted &amp;&amp; receivedQty &gt;= qty</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_6" name="아니오" sourceRef="Gateway_Ok" targetRef="Task_Claim"/>
+    <bpmn:sequenceFlow id="Flow_7" sourceRef="Task_Pay" targetRef="End_Settled"/>
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Task_Claim" targetRef="End_Disputed"/>
+  </bpmn:process>
+</bpmn:definitions>

@@ -8,29 +8,42 @@
 설계 근거와 세부 스펙은 [`docs/bpmn_sc_control_guide.pdf`](docs/bpmn_sc_control_guide.pdf) (세부 구현 가이드, 22쪽) 이고,
 그 요약이 [`docs/DESIGN.md`](docs/DESIGN.md) 다. 이 README 는 저장소 사용법만 다룬다.
 
-## 현재 상태 — Phase 0 "골격" (가이드 11장)
+## 현재 상태 (가이드 11장 로드맵)
+
+**Phase 0 "골격" — 완료**
 
 | 완료 기준 | 상태 |
 |---|---|
 | 리포 구조 | pnpm 워크스페이스: `packages/{ir,validator,codegen,bpmn}` + `contracts/` |
 | IR 스키마 (JSON Schema) | `packages/ir/schema/bf-ir.schema.json` (bf-ir/0.1) + TS 타입 |
 | 예시 IR 3개 손으로 작성 | `packages/ir/examples/{expense-approval,purchase-order,paper-review}.json` |
-| 6.6 예시 컨트랙트를 템플릿에서 재생성해 부록 C 와 **diff 0** | `pnpm test` 의 `codegen 스냅샷` — 바이트 단위 일치, solc 0.8.37 경고 0, 3,960 B |
-| `pnpm test` 에서 codegen 스냅샷 통과 | 통과. 추가로 7.6 의 17개 트랜잭션 시나리오를 JS EVM 에서 재현 (가스 수치까지 일치) |
+| 6.6 예시 컨트랙트를 템플릿에서 재생성해 부록 C 와 **diff 0** | 바이트 단위 일치, solc 0.8.37 경고 0, 3,960 B |
+| `pnpm test` 에서 codegen 스냅샷 통과 | 통과. 7.6 의 17개 트랜잭션 시나리오를 JS EVM 에서 재현 (가스 수치까지 일치) |
 
-Phase 1 이후 (BPMN 파서, 모델러, 런타임, 지갑) 는 `docs/DESIGN.md` 의 로드맵을 따른다.
+**Phase 1 "컴파일러" — 완료 (모델러 없이 손으로 쓴 BPMN XML 기준)**
+
+| 완료 기준 | 상태 |
+|---|---|
+| bpmn-moddle 파서 → IR | `packages/bpmn/src/parse.ts` — bc 확장, XOR 합류 정규화, 문서 순서 비트 배정 |
+| V1 규칙 R1~R12 | 같은 파일. 비전문가용 한국어 메시지 + 요소 id (UI 배지용) |
+| V2 BFS | `packages/validator` (Phase 0 에서 선행) |
+| Mustache 생성기, solc 컴파일 | `packages/codegen` + solc-js 0.8.37 |
+| Foundry 테스트 생성 | `packages/codegen/src/{scenarios,foundry}.ts` — 불변식 4개 + 도달 경로마다 시나리오 1개 (음성 케이스 포함) |
+| 손으로 그린 BPMN 5개(승인/구매/여행예약/논문심사/공급망)가 모두 배포·실행 | `packages/bpmn/examples/*.bpmn` → `contracts/src/*.sol`. `pnpm test` 가 JS EVM 에서 5개 전부 배포하고 모든 경로를 실행, CI 의 `forge test` 가 같은 시나리오와 불변식을 실행 |
+
+Phase 2 (모델러), 3 (런타임·지갑) 는 `docs/DESIGN.md` 의 로드맵을 따른다.
 
 ## 구조
 
 ```
 packages/
-  ir/          @blockflow/ir        IR 타입 + JSON Schema + 예시 IR             (가이드 5장, 부록 B)
-  validator/   @blockflow/validator IR 구조 검사 + Petri net BFS soundness 검사  (7.2)
-  codegen/     @blockflow/codegen   IR → Solidity (Mustache 템플릿, 조건식 DSL)   (6장, 4.4)
-  bpmn/        @blockflow/bpmn      bc moddle 확장 JSON. 파서는 Phase 1           (부록 A)
+  ir/          @blockflow/ir        IR 타입 + JSON Schema + 예시 IR                        (가이드 5장, 부록 B)
+  validator/   @blockflow/validator IR 구조 검사 + Petri net BFS soundness 검사             (7.2)
+  codegen/     @blockflow/codegen   IR → Solidity, IR → Foundry 테스트, 조건식 DSL, 시나리오  (6장, 4.4, 7.4)
+  bpmn/        @blockflow/bpmn      BPMN XML → IR 파서, 규칙 R1~R12, bc moddle 확장, 예시 5개 (4장, 5.2, 부록 A)
 contracts/
-  src/         생성된 컨트랙트 (손으로 고치지 않음)                              (부록 C)
-  test/        Foundry 불변식 + 시나리오 테스트                                  (부록 D, 7.6)
+  src/         생성된 컨트랙트 (손으로 고치지 않음)                                         (부록 C)
+  test/        생성된 Foundry 테스트(generated/) + 부록 D 참조본                             (부록 D, 7.6)
 docs/          구현 가이드 PDF, 설계 요약
 ```
 
@@ -43,8 +56,10 @@ pnpm install
 pnpm test            # vitest: 스키마·DSL·soundness·codegen 스냅샷·solc 컴파일·JS EVM 시나리오
 pnpm typecheck
 pnpm check:sound     # 예시 IR 의 soundness 검사 결과 출력
-pnpm codegen packages/ir/examples/expense-approval.json          # Solidity 를 stdout 으로
-pnpm gen:examples    # 모든 예시 IR → contracts/src/*.sol 재생성
+pnpm bpmn lint packages/bpmn/examples/expense-approval.bpmn      # 규칙 R1~R12 검사
+pnpm bpmn compile packages/bpmn/examples/expense-approval.bpmn   # BPMN → Solidity 를 stdout 으로
+pnpm codegen packages/ir/examples/expense-approval.json          # IR → Solidity
+pnpm gen:examples    # BPMN 예시 5개 → contracts/src/*.sol + contracts/test/generated/*.t.sol 재생성
 ```
 
 Foundry 가 있으면:
@@ -56,10 +71,10 @@ cd contracts && forge install foundry-rs/forge-std && forge test -vv
 ## 파이프라인 (한 프로세스의 일생)
 
 ```
-BPMN XML ──(Phase 1 파서)──▶ IR(JSON) ──▶ validator ──▶ codegen ──▶ Solidity ──▶ solc 0.8.37 ──▶ 배포/제어
-                                            │ 구조 검사              │ Mustache        │ 경고 0
-                                            │ 1-safe·데드락·         │ 조건식 DSL       │ Slither/SMTChecker (Phase 1)
-                                            │ 남은 토큰·dead task    │ 이름 충돌 처리    │ Foundry 불변식 (부록 D)
+BPMN XML ──▶ bpmn 파서 ──▶ IR(JSON) ──▶ validator ──▶ codegen ──▶ Solidity ──▶ solc 0.8.37 ──▶ 배포/제어
+             │ R1~R12                    │ 구조 검사        │ Mustache            │ 경고 0
+             │ XOR 합류 정규화            │ 1-safe·데드락·   │ 조건식 DSL           │ Slither/SMTChecker (예정)
+             │ 비트 배정·이름 생성         │ 남은 토큰·dead   │ 시나리오 → .t.sol    │ Foundry 불변식·경로 테스트
 ```
 
 핵심 인코딩 (D1): **시퀀스 플로우 1개 = `uint256 marking` 의 비트 1개**. 태스크 활성 = `marking & F_in != 0`.

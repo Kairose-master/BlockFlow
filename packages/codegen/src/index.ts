@@ -62,5 +62,7 @@ export function generate(ir: IR, opts: GenerateOptions = {}): string {
 }
 
 export { buildContext } from "./emit.js";
-export { compileExpr, ExprError } from "./expr.js";
+export { compileExpr, parseExpr, renderExpr, evalExpr, ExprError, type Ast, type Value } from "./expr.js";
+export { planScenarios, solValue, defaultRoleAddress, type Plan, type PlanStep, type PlanOptions } from "./scenarios.js";
+export { generateFoundryTest, type FoundryTestOptions } from "./foundry.js";
 export * as names from "./names.js";

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  여행 예약 (中山大 사례 세트). 레인: 여행자 / 승인자 / 예약 담당.
+  [시작] → (여행자) 출장 요청{destinationHash, budget}
+        → ◇ budget>3000? ─yes→ (승인자) 예산 승인{approved} → ◇ approved? ─yes→ ◇합류 → ◆분기
+                         └default──────────────────────────────────────→ ◇합류        no(default) → [종료:반려]
+        ◆분기 → (예약 담당) 항공 예약{flightHash} ┐
+             └→ (예약 담당) 호텔 예약{hotelHash}  ┴→ ◆합류 → (여행자) 일정 확인{confirmed}
+        → ◇ confirmed? ─yes→ [종료:확정]   default → [종료:취소]
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_TravelBooking" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="TravelBooking" name="여행 예약" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="destinationHash" type="bytes32"/>
+        <bc:variable name="budget" type="uint256"/>
+        <bc:variable name="approved" type="bool"/>
+        <bc:variable name="flightHash" type="bytes32"/>
+        <bc:variable name="hotelHash" type="bytes32"/>
+        <bc:variable name="confirmed" type="bool"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Traveler" name="여행자" bc:roleKey="Traveler">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Request</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Budget</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Confirm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Confirmed</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Booked</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Cancelled</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Approver" name="승인자" bc:roleKey="Approver">
+        <bpmn:flowNodeRef>Task_Approve</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Approved</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Agent" name="예약 담당" bc:roleKey="Agent">
+        <bpmn:flowNodeRef>Gateway_Join</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Fork</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Flight</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Hotel</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Sync</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Request" name="출장 요청" bc:fn="request">
+      <bpmn:extensionElements>
+        <bc:inputs>
+          <bc:input variable="destinationHash" label="목적지·일정"/>
+          <bc:input variable="budget" label="예산"/>
+        </bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Budget" name="예산 초과?" default="Flow_4">
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Approve" name="예산 승인" bc:fn="approveBudget" bc:tag="APPROVE">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="approved" label="승인 여부"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="승인?" default="Flow_7">
+      <bpmn:incoming>Flow_5</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing><bpmn:outgoing>Flow_7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_Join" name="합류">
+      <bpmn:incoming>Flow_4</bpmn:incoming><bpmn:incoming>Flow_6</bpmn:incoming><bpmn:outgoing>Flow_Join</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:parallelGateway id="Gateway_Fork" name="동시 예약">
+      <bpmn:incoming>Flow_Join</bpmn:incoming><bpmn:outgoing>Flow_8</bpmn:outgoing><bpmn:outgoing>Flow_9</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_Flight" name="항공 예약" bc:fn="bookFlight" bc:tag="FLIGHT">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="flightHash" label="항공권"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_8</bpmn:incoming><bpmn:outgoing>Flow_10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Hotel" name="호텔 예약" bc:fn="bookHotel" bc:tag="HOTEL">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="hotelHash" label="숙박 확인서"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_9</bpmn:incoming><bpmn:outgoing>Flow_11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:parallelGateway id="Gateway_Sync" name="예약 완료">
+      <bpmn:incoming>Flow_10</bpmn:incoming><bpmn:incoming>Flow_11</bpmn:incoming><bpmn:outgoing>Flow_12</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="Task_Confirm" name="일정 확인" bc:fn="confirm">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="confirmed" label="확정 여부"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_12</bpmn:incoming><bpmn:outgoing>Flow_13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Confirmed" name="확정?" default="Flow_15">
+      <bpmn:incoming>Flow_13</bpmn:incoming><bpmn:outgoing>Flow_14</bpmn:outgoing><bpmn:outgoing>Flow_15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_Booked" name="확정"><bpmn:incoming>Flow_14</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Cancelled" name="취소" bc:outcome="cancelled"><bpmn:incoming>Flow_15</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="반려" bc:outcome="rejected"><bpmn:incoming>Flow_7</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Request"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Request" targetRef="Gateway_Budget"/>
+    <bpmn:sequenceFlow id="Flow_3" name="예" sourceRef="Gateway_Budget" targetRef="Task_Approve">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">budget &gt; 3000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_4" name="아니오" sourceRef="Gateway_Budget" targetRef="Gateway_Join"/>
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_Approve" targetRef="Gateway_Approved"/>
+    <bpmn:sequenceFlow id="Flow_6" name="예" sourceRef="Gateway_Approved" targetRef="Gateway_Join">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">approved</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_7" name="아니오" sourceRef="Gateway_Approved" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_8" sourceRef="Gateway_Fork" targetRef="Task_Flight"/>
+    <bpmn:sequenceFlow id="Flow_9" sourceRef="Gateway_Fork" targetRef="Task_Hotel"/>
+    <bpmn:sequenceFlow id="Flow_10" sourceRef="Task_Flight" targetRef="Gateway_Sync"/>
+    <bpmn:sequenceFlow id="Flow_11" sourceRef="Task_Hotel" targetRef="Gateway_Sync"/>
+    <bpmn:sequenceFlow id="Flow_12" sourceRef="Gateway_Sync" targetRef="Task_Confirm"/>
+    <bpmn:sequenceFlow id="Flow_13" sourceRef="Task_Confirm" targetRef="Gateway_Confirmed"/>
+    <bpmn:sequenceFlow id="Flow_14" name="예" sourceRef="Gateway_Confirmed" targetRef="End_Booked">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">confirmed</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_15" name="아니오" sourceRef="Gateway_Confirmed" targetRef="End_Cancelled"/>
+    <bpmn:sequenceFlow id="Flow_Join" sourceRef="Gateway_Join" targetRef="Gateway_Fork"/>
+  </bpmn:process>
+</bpmn:definitions>

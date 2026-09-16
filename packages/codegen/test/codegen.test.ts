@@ -15,9 +15,12 @@ describe("codegen 스냅샷", () => {
   for (const file of exampleFiles()) {
     const ir = loadExample(file);
 
-    it(`${file} → contracts/src/${ir.process.id}.sol 과 diff 0`, () => {
-      expect(generate(ir)).toBe(readContract(ir.process.id));
-    });
+    // contracts/src 는 packages/bpmn/examples 에서 생성된다. 손으로 쓴 IR 예시 중 부록 B 는 부록 C 와 diff 0 이어야 한다.
+    if (file === "expense-approval.json") {
+      it(`${file} (부록 B) → contracts/src/ExpenseApproval.sol (부록 C) 과 diff 0`, () => {
+        expect(generate(ir)).toBe(readContract(ir.process.id));
+      });
+    }
 
     it(`${file} 생성 코드가 경고 0 으로 컴파일된다`, () => {
       const c = compile(generate(ir), ir.process.id);
