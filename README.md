@@ -6,7 +6,7 @@
 다이어그램 위에서 인스턴스를 만들고, 자기 차례의 태스크를 완료하고, 진행 상태를 보고, 프로세스를 멈추거나 교체한다.
 
 설계 근거와 세부 스펙은 [`docs/bpmn_sc_control_guide.pdf`](docs/bpmn_sc_control_guide.pdf) (세부 구현 가이드, 22쪽) 이고,
-그 요약이 [`docs/DESIGN.md`](docs/DESIGN.md) 다. 이 README 는 저장소 사용법만 다룬다.
+그 요약이 [`docs/DESIGN.md`](docs/DESIGN.md) 다. 이 README 는 저장소 사용법만 다룬다. 처음이면 [`QuickStart.md`](QuickStart.md) 부터 (10분 완주 안내).
 
 ## 현재 상태 (가이드 11장 로드맵)
 
