@@ -32,6 +32,23 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
   expect(c.diagnostics).toEqual([]);
   const h = await Harness.create(c.abi, [owner, stranger, ...roleAccounts]);
   const { address } = await h.deploy(owner, c.bytecode, [owner.hex]);
+
+  // L1 결제 태스크: 토큰 목을 참조 주소에 심고, 역할 계정마다 잔액과 approve 를 준다
+  const tokens = [...new Set(ir.nodes.filter((n) => n.kind === "userTask" && n.payment).map((n) => (n.kind === "userTask" ? n.payment!.token : "")))];
+  const tokenAbi = tokens.length ? compile(Harness.MOCK_ERC20_SOURCE, "MockERC20") : undefined;
+  const tokenAddrs = new Map<string, Awaited<ReturnType<Harness["etch"]>>>();
+  for (const t of tokens) {
+    const tokenAddr = await h.etch(t as `0x${string}`, tokenAbi!.deployedBytecode);
+    tokenAddrs.set(t.toLowerCase(), tokenAddr);
+    for (const a of roleAccounts) {
+      expect((await h.callWith(tokenAbi!.abi, owner, tokenAddr, "mint", [a.hex, 10n ** 30n])).ok).toBe(true);
+      expect((await h.callWith(tokenAbi!.abi, a, tokenAddr, "approve", [address.toString(), 2n ** 256n - 1n])).ok).toBe(true);
+    }
+  }
+  const balanceOf = async (token: string, who: string): Promise<bigint> => {
+    const r = await h.callWith(tokenAbi!.abi, owner, tokenAddrs.get(token.toLowerCase())!, "balanceOf", [who]);
+    return BigInt(r.returnData);
+  };
   const acc = (roleKey: string) => roleAccounts[ir.roles.findIndex((r) => r.key === roleKey)]!;
   const gas: Record<string, bigint[]> = {};
 
@@ -39,7 +56,9 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
     const created = await h.call(owner, address, "createInstance", [roleAccounts.map((a) => a.hex)]);
     expect(created.ok, created.error).toBe(true);
     const id = BigInt(plan.index);
+    const vars: Record<string, unknown> = {};
     for (const s of plan.steps) {
+      Object.assign(vars, s.args);
       const args = s.task.inputs.map((i) => toArg(s.args[i.variable]!));
       // 권한 없는 실행
       const bad = await h.call(stranger, address, s.task.name, [id, ...args]);
@@ -54,11 +73,19 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
         const r = await h.call(acc(d.role), address, d.name, [id, ...zeros]);
         expect(r.error).toBe(`TaskNotEnabled(${id},${d.taskId})`);
       }
+      // 결제 태스크: 받는 쪽 잔액이 금액만큼 늘어야 한다
+      const pay = s.task.payment;
+      const payee = pay && "role" in pay.to ? acc(pay.to.role).hex : pay && "address" in pay.to ? pay.to.address : undefined;
+      const before = pay && payee ? await balanceOf(pay.token, payee) : 0n;
       // 정상 실행
       const r = await h.call(acc(s.task.role), address, s.task.name, [id, ...args]);
       expect(r.ok, `${plan.description}: ${s.task.name} → ${r.error}`).toBe(true);
       (gas[s.task.name] ??= []).push(r.gas);
       expect(r.events).toContain(`MarkingChanged(${id},${s.markingAfter})`);
+      if (pay && payee) {
+        const amount = BigInt(String(vars[pay.amountVar] ?? 0n));
+        expect(await balanceOf(pay.token, payee)).toBe(before + amount);
+      }
       if (s.endedAfter) expect(r.events).toContain(`InstanceEnded(${id},${s.outcomeAfter === "completed"})`);
       else expect(r.events.some((e) => e.startsWith("InstanceEnded"))).toBe(false);
     }
@@ -74,7 +101,7 @@ async function runPlans(ir: IR): Promise<{ plans: Plan[]; gas: Record<string, bi
   return { plans, gas };
 }
 
-describe("BPMN 예시 5개: 배포 + 모든 도달 경로 실행 (JS EVM)", () => {
+describe("BPMN 예시 전부: 배포 + 모든 도달 경로 실행 (JS EVM)", () => {
   for (const f of files) {
     it(f, async () => {
       const { ir } = await parseBpmn(readFileSync(join(BPMN_DIR, f), "utf8"));
@@ -89,7 +116,8 @@ describe("BPMN 예시 5개: 배포 + 모든 도달 경로 실행 (JS EVM)", () =
       for (const t of ir.nodes) {
         if (t.kind !== "userTask" || !gas[t.name]) continue;
         const max = gas[t.name]!.reduce((a, b) => (a > b ? a : b), 0n);
-        const limit = 45_000n + 22_500n * BigInt(t.inputs.length);
+        // 결제 태스크는 ERC-20 transferFrom(잔액 2개 + allowance 갱신) 만큼 더 든다
+        const limit = 45_000n + 22_500n * BigInt(t.inputs.length) + (t.payment ? 30_000n : 0n);
         lines.push(`  ${t.name.padEnd(16)} inputs=${t.inputs.length} max gas=${max}`);
         expect(max, `${t.name} gas ${max} > ${limit}`).toBeLessThanOrEqual(limit);
       }

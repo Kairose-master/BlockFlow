@@ -7,7 +7,7 @@
  * 진단(Diagnostic)은 비전문가용 한국어 메시지 + 요소 id 를 가진다. UI 는 id 로 요소에 빨간 배지를 붙인다.
  */
 import { BpmnModdle, type ModdleElement } from "bpmn-moddle";
-import type { EndEventNode, Flow, IR, Node, Role, TaskInput, UserTaskNode, VarType, Variable } from "@blockflow/ir";
+import type { EndEventNode, Flow, IR, Node, Payment, Role, TaskInput, UserTaskNode, VarType, Variable } from "@blockflow/ir";
 import { compileExpr, ExprError } from "@blockflow/codegen/expr";
 import * as names from "@blockflow/codegen/names";
 import BC from "../moddle/bc.json" with { type: "json" };
@@ -61,6 +61,8 @@ interface GNode {
   fn?: string;
   tag?: string;
   inputs: TaskInput[];
+  /** L1 결제 (bc:payToken / bc:payTo / bc:payAmountVar) */
+  pay?: { token: string; to: string; amountVar: string };
   /** end */
   outcome?: string;
 }
@@ -208,6 +210,8 @@ function buildGraph(defs: ModdleElement, diags: Diagnostic[]): Graph | undefined
         if (fn) n.fn = fn;
         const tag = str(fe.get("bc:tag"));
         if (tag) n.tag = tag;
+        const payToken = str(fe.get("bc:payToken")), payTo = str(fe.get("bc:payTo")), payAmountVar = str(fe.get("bc:payAmountVar"));
+        if (payToken || payTo || payAmountVar) n.pay = { token: payToken, to: payTo, amountVar: payAmountVar };
         for (const inp of extValues(fe, "bc:Inputs")) {
           const input: TaskInput = { variable: str(inp.variable), label: str(inp.label) || str(inp.variable) };
           if (inp.required === false) input.required = false;
@@ -375,6 +379,12 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
       }
     }
   }
+  for (const t of nodes.filter((n) => n.kind === "task" && n.pay?.amountVar)) {
+    const definedHere = new Set([...defIn.get(t.id)!, ...t.inputs.map((i) => i.variable)]);
+    if (g.variables.some((v) => v.name === t.pay!.amountVar) && !definedHere.has(t.pay!.amountVar)) {
+      push("R10", `[${labelOfVar(g, t.pay!.amountVar)}]을 입력받기 전에 지급 금액으로 쓰고 있어요`, t.id, `변수 ${t.pay!.amountVar}`);
+    }
+  }
   for (const gw of nodes.filter((n) => n.kind === "xor" && n.out.length >= 2)) {
     const defined = defIn.get(gw.id)!;
     for (const fid of gw.out) {
@@ -382,6 +392,17 @@ function checkRules(g: Graph, diags: Diagnostic[]): void {
         if (!defined.has(v)) push("R10", `[${labelOfVar(g, v)}]을 입력받기 전에 조건에서 쓰고 있어요`, fid, `변수 ${v}`);
       }
     }
+  }
+  // L1 결제 태스크
+  const roleKeysAll = new Set(g.lanes.map((l, i) => roleKeyOf(l, i)));
+  for (const t of nodes.filter((n) => n.kind === "task" && n.pay)) {
+    const pay = t.pay!;
+    if (!/^0x[0-9a-fA-F]{40}$/.test(pay.token)) push("L1", "결제에 쓸 토큰 주소(0x…)를 넣어 주세요", t.id);
+    if (!pay.to) push("L1", "누구에게 지급하는지(역할 또는 주소)를 정하세요", t.id);
+    else if (!roleKeysAll.has(pay.to) && !/^0x[0-9a-fA-F]{40}$/.test(pay.to)) push("L1", `받는 쪽 '${pay.to}' 는 역할 이름이나 지갑 주소여야 해요`, t.id);
+    const amount = g.variables.find((v) => v.name === pay.amountVar);
+    if (!amount) push("L1", "지급 금액으로 쓸 값을 고르세요", t.id);
+    else if (amount.type !== "uint256") push("L1", `지급 금액 [${pay.amountVar}] 은 0 이상의 숫자여야 해요`, t.id);
   }
   // R11
   if (flows.length > 256) push("R11", "프로세스가 너무 커요. 나눠 주세요", g.processId, `플로우 ${flows.length}개`);
@@ -516,6 +537,10 @@ function toIR(g: Graph): IR {
           in: ins, out: outs,
         };
         if (n.tag) task.tag = n.tag;
+        if (n.pay) {
+          const to: Payment["to"] = /^0x[0-9a-fA-F]{40}$/.test(n.pay.to) ? { address: n.pay.to } : { role: n.pay.to };
+          task.payment = { token: n.pay.token, to, amountVar: n.pay.amountVar };
+        }
         nodes.push(task);
         break;
       }

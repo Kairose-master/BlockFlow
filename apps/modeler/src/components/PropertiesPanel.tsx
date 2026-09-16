@@ -182,6 +182,49 @@ function TaskForm({ modeler, task, process }: { modeler: Modeler; task: Shape; p
       </table>
       <button className="mt-2 text-sm text-blue-600 hover:underline disabled:text-gray-300" disabled={!vars.length}
         onClick={() => update([...inputs, { variable: vars[0]!.name, label: vars[0]!.name }])} data-testid="add-input">+ 입력 추가</button>
+      <PaymentFields modeler={modeler} task={task} vars={vars} />
+    </div>
+  );
+}
+
+/** L1 결제 태스크 (bc:payToken / bc:payTo / bc:payAmountVar): 완료할 때 담당자가 토큰을 보낸다. */
+function PaymentFields({ modeler, task, vars }: { modeler: Modeler; task: Shape; vars: { name: string; type: string }[] }) {
+  const bo = task.businessObject;
+  const token: string = bo.get("bc:payToken") ?? "";
+  const to: string = bo.get("bc:payTo") ?? "";
+  const amountVar: string = bo.get("bc:payAmountVar") ?? "";
+  const enabled = !!(token || to || amountVar);
+  const roles = laneKeys(modeler);
+  const uintVars = vars.filter((v) => v.type === "uint256");
+  const set = (props: Record<string, string | undefined>) => setProps(modeler, task, props);
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-3">
+      <label className="flex items-center gap-2 text-sm mb-2">
+        <input type="checkbox" checked={enabled} data-testid="task-payment"
+          onChange={(e) => (e.target.checked
+            ? set({ "bc:payToken": token || "0x1000000000000000000000000000000000000001", "bc:payTo": to || roles[0] || "", "bc:payAmountVar": amountVar || uintVars[0]?.name || "" })
+            : set({ "bc:payToken": undefined, "bc:payTo": undefined, "bc:payAmountVar": undefined }))} />
+        완료할 때 토큰을 보내요 (결제)
+      </label>
+      {enabled && (
+        <>
+          <Field label="토큰 주소 (ERC-20)" hint="담당자가 이 프로세스에 지출 승인(approve)을 해 두어야 해요">
+            <input className={input} value={token} onChange={(e) => set({ "bc:payToken": e.target.value })} data-testid="pay-token" />
+          </Field>
+          <Field label="받는 쪽">
+            <select className={input} value={roles.includes(to) ? to : "__addr"} onChange={(e) => set({ "bc:payTo": e.target.value === "__addr" ? "0x" : e.target.value })} data-testid="pay-to">
+              {roles.map((r) => <option key={r} value={r}>{r} (역할 담당자)</option>)}
+              <option value="__addr">지갑 주소 직접 입력</option>
+            </select>
+            {!roles.includes(to) && <input className={`${input} mt-1`} value={to} placeholder="0x…" onChange={(e) => set({ "bc:payTo": e.target.value })} />}
+          </Field>
+          <Field label="금액으로 쓸 값">
+            <select className={input} value={amountVar} onChange={(e) => set({ "bc:payAmountVar": e.target.value })} data-testid="pay-amount">
+              {uintVars.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
+            </select>
+          </Field>
+        </>
+      )}
     </div>
   );
 }

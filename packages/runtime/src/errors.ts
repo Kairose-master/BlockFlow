@@ -40,6 +40,10 @@ export function translateError(err: ContractError, ir?: IR): Translation {
       return { message: "프로세스 소유자만 할 수 있는 작업이에요", hint: { kind: "process" } };
     case "RoleCount":
       return { message: "모든 역할의 담당자를 지정해 주세요", hint: { kind: "lane" } };
+    case "PaymentFailed":
+      return { message: "결제가 되지 않았어요. 토큰 잔액과 이 프로세스에 대한 지출 승인(approve)을 확인하세요", hint: { kind: "task" } };
+    case "Reentrant":
+      return { message: "이미 처리 중인 요청이 있어요. 잠시 후 다시 시도하세요", hint: { kind: "process" } };
     default:
       return { message: `알 수 없는 오류예요 (${err.name})` };
   }

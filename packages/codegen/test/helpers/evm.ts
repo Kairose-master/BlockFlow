@@ -40,6 +40,19 @@ export class Harness {
     readonly abi: Abi,
   ) {}
 
+  static readonly MOCK_ERC20_SOURCE = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+contract MockERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
+    function approve(address spender, uint256 amount) external returns (bool) { allowance[msg.sender][spender] = amount; return true; }
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        if (allowance[from][msg.sender] < amount || balanceOf[from] < amount) return false;
+        allowance[from][msg.sender] -= amount; balanceOf[from] -= amount; balanceOf[to] += amount; return true;
+    }
+}`;
+
   static async create(abi: Abi, accounts: Account[]): Promise<Harness> {
     const vm = await createVM({ common });
     for (const a of accounts) {
@@ -80,6 +93,25 @@ export class Harness {
     const args = d.args as Record<string, unknown> | undefined;
     const vals = args ? Object.values(args).map((v) => (typeof v === "bigint" ? v.toString() : String(v))) : [];
     return `${d.eventName}(${vals.join(",")})`;
+  }
+
+  /** 주소에 런타임 코드를 심는다 (vm.etch 와 같다). L1 결제 테스트의 토큰 목 배치용. */
+  async etch(address: `0x${string}`, runtimeCode: `0x${string}`): Promise<Address> {
+    const addr = new Address(hexToBytes(address));
+    await this.vm.stateManager.putAccount(addr, createAccount({ balance: 0n }));
+    await this.vm.stateManager.putCode(addr, hexToBytes(runtimeCode));
+    return addr;
+  }
+
+  /** 다른 ABI 의 컨트랙트 호출 (토큰 목 등) */
+  async callWith(abi: Abi, from: Account, to: Address, fn: string, args: unknown[] = []): Promise<TxResult> {
+    const saved = this.abi;
+    (this as { abi: Abi }).abi = abi;
+    try {
+      return await this.send(from, to, encodeFunctionData({ abi, functionName: fn, args }));
+    } finally {
+      (this as { abi: Abi }).abi = saved;
+    }
   }
 
   async deploy(from: Account, bytecode: `0x${string}`, args: unknown[]): Promise<{ address: Address; result: TxResult }> {

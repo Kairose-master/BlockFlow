@@ -16,11 +16,14 @@ import {
   userTasks,
 } from "@blockflow/ir";
 import { compileExpr } from "./expr";
+import { getAddress } from "viem";
 import { padEnd, roleConst, screamingSnake, taskConst, uniqueName } from "./names";
 
 export interface TemplateContext {
   contractName: string;
   processName: string;
+  /** L1 결제 태스크가 하나라도 있으면 IERC20 인터페이스·nonReentrant·PaymentFailed 를 낸다 */
+  hasPayment: boolean;
   roles: { line: string }[];
   roleCount: number;
   roleOrder: string;
@@ -44,6 +47,8 @@ export interface TaskCtx {
   outMask: string;
   taskConst: string;
   sets: { variable: string }[];
+  /** L1 결제: 완료 후 transferFrom(msg.sender, to, amount) */
+  payment?: { token: string; to: string; amountVar: string };
 }
 
 /** step.mustache 는 xor/andSplit/andJoin/end 중 하나의 섹션만 렌더링한다. */
@@ -163,8 +168,9 @@ export function buildContext(ir: IR): TemplateContext {
     const fnName = uniqueName(t.name, usedFnNames);
     const params = ["uint256 id", ...t.inputs.map((inp) => `${varType.get(inp.variable)} ${inp.variable}`)].join(", ");
     const sets = t.inputs.length ? `  sets: ${t.inputs.map((x) => x.variable).join(", ")}` : "";
-    return {
-      doc: `/// T${t.taskId}: ${t.label} [${t.role}]  in: ${t.in.join(" | ")}  out: ${t.out.join(" | ")}${sets}`,
+    const pays = t.payment ? `  pays: ${t.payment.amountVar} → ${"role" in t.payment.to ? t.payment.to.role : t.payment.to.address}` : "";
+    const ctx: TaskCtx = {
+      doc: `/// T${t.taskId}: ${t.label} [${t.role}]  in: ${t.in.join(" | ")}  out: ${t.out.join(" | ")}${sets}${pays}`,
       name: fnName,
       params,
       roleConst: roleConst(t.role),
@@ -173,6 +179,14 @@ export function buildContext(ir: IR): TemplateContext {
       taskConst: taskConstNames[i]!,
       sets: t.inputs.map((x) => ({ variable: x.variable })),
     };
+    if (t.payment) {
+      ctx.payment = {
+        token: getAddress(t.payment.token), // 주소 리터럴은 체크섬 형식이어야 컴파일된다
+        to: "role" in t.payment.to ? `roleOf[id][${roleConst(t.payment.to.role)}]` : getAddress(t.payment.to.address),
+        amountVar: t.payment.amountVar,
+      };
+    }
+    return ctx;
   });
 
   // ── 침묵 전이: XOR → AND split → AND join → End (5.2) ──
@@ -207,6 +221,7 @@ export function buildContext(ir: IR): TemplateContext {
   return {
     contractName: ir.process.id,
     processName: ir.process.name,
+    hasPayment: tasks.some((t) => !!t.payment),
     roles,
     roleCount: ir.roles.length,
     roleOrder: ir.roles.map((r) => r.key).join(", "),

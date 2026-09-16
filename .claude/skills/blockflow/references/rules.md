@@ -17,3 +17,5 @@
 | L0 | 팔레트 밖 요소 | 서비스 태스크(오라클)는 L1 에서 지원돼요 … | 타이머·메시지·서브프로세스 |
 
 Soundness(1-safe·데드락·남은 토큰·dead task)는 IR 단계의 `packages/validator` 가 본다.
+
+| L1 | 결제 태스크: 토큰 주소(0x…40자리), 받는 쪽(역할 키 또는 주소), 금액 변수(uint256, 이전에 입력됨) | 결제에 쓸 토큰 주소를 넣어 주세요 … | `bc:payToken`/`bc:payTo`/`bc:payAmountVar` 누락 |

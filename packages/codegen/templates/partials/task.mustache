@@ -3,11 +3,18 @@
         external
         whenNotPaused
         onlyRole(id, {{roleConst}})
+{{#payment}}
+        nonReentrant
+{{/payment}}
     {
         _require(id, {{inMask}}, {{taskConst}});
 {{#sets}}
         vars[id].{{variable}} = {{variable}};
 {{/sets}}
         _fire(id, {{inMask}}, {{outMask}}, {{taskConst}});
+{{#payment}}
+        // 결제 (checks-effects-interactions: 상태 전이 뒤에 외부 호출)
+        if (!IERC20({{token}}).transferFrom(msg.sender, {{to}}, vars[id].{{amountVar}})) revert PaymentFailed();
+{{/payment}}
     }
 

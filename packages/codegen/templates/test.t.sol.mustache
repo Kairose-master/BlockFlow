@@ -5,6 +5,46 @@ import "forge-std/Test.sol";
 import "{{importPath}}";
 
 // 자동 생성 — BlockFlow codegen (IR → Foundry 테스트). 손으로 고치지 말고 IR/템플릿을 고친 뒤 다시 생성할 것.
+{{#hasPayment}}
+
+/// @dev L1 결제 태스크용 최소 ERC-20. 컨트랙트가 참조하는 토큰 주소에 vm.etch 로 심는다.
+contract BlockFlowMockERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        if (allowance[from][msg.sender] < amount || balanceOf[from] < amount) return false;
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
+}
+
+/// @dev 역할 계정마다 토큰을 주고 프로세스 컨트랙트에 approve 한다.
+library BlockFlowPaymentSetup {
+    function setup(address[] memory accounts, address process) internal {
+        Vm vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+{{#tokens}}
+        vm.etch({{address}}, address(new BlockFlowMockERC20()).code);
+        for (uint256 i = 0; i < accounts.length; i++) {
+            BlockFlowMockERC20({{address}}).mint(accounts[i], 1e30);
+            vm.prank(accounts[i]);
+            BlockFlowMockERC20({{address}}).approve(process, type(uint256).max);
+        }
+{{/tokens}}
+    }
+}
+{{/hasPayment}}
 
 /// @dev 무작위 역할 계정이 무작위 태스크를 호출한다. 거부는 정상이다 (fail_on_revert = false).
 contract {{contractName}}Handler is Test {
@@ -39,6 +79,11 @@ contract {{contractName}}Invariants is Test {
         p = new {{contractName}}(address(this));
         h = new {{contractName}}Handler(p, acc);
         targetContract(address(h));
+{{#hasPayment}}
+        address[] memory list = new address[]({{roleCount}});
+        for (uint256 i = 0; i < {{roleCount}}; i++) list[i] = acc[i];
+        BlockFlowPaymentSetup.setup(list, address(p));
+{{/hasPayment}}
     }
 
     /// 모든 인스턴스의 marking 은 알려진 플로우 비트만 갖는다
@@ -103,6 +148,13 @@ contract {{contractName}}Scenarios is Test {
 {{#taskConsts}}
         {{const}} = p.{{const}}();
 {{/taskConsts}}
+{{#hasPayment}}
+        address[] memory list = new address[]({{roleCount}});
+{{#roles}}
+        list[{{index}}] = {{var}};
+{{/roles}}
+        BlockFlowPaymentSetup.setup(list, address(p));
+{{/hasPayment}}
     }
 
     function _create() internal returns (uint256 id) {

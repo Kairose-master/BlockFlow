@@ -77,6 +77,16 @@ export interface EndEventNode {
   label?: string;
 }
 
+/**
+ * L1 결제 태스크 (4.3 bc:payment): 완료 시 msg.sender(담당자) 가 ERC-20 을 `to` 에게 `amountVar` 만큼 보낸다.
+ * transferFrom 이므로 담당자가 컨트랙트에 미리 approve 해야 한다. token 은 주소 리터럴 (v0.1).
+ */
+export interface Payment {
+  token: string;
+  to: { role: string } | { address: string };
+  amountVar: string;
+}
+
 export interface UserTaskNode {
   id: string;
   kind: "userTask";
@@ -94,6 +104,8 @@ export interface UserTaskNode {
   out: string[];
   /** TASK_{TAG} 상수용 짧은 이름. 없으면 name 에서 파생. */
   tag?: string;
+  /** L1 결제 태스크 */
+  payment?: Payment;
 }
 
 export interface XorBranch {

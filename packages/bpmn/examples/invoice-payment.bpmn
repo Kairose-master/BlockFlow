@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  청구 결제 (L1 결제 태스크). 레인: 공급사 / 구매자.
+  [시작] → (공급사) 청구{invoiceHash, amount} → (구매자) 검토{accepted} → ◇ accepted? ─yes→ (구매자) 결제 [ERC-20 amount → 공급사] → [종료:결제됨]
+                                                                        default → [종료:거절]
+  결제 태스크: bc:payToken(토큰 주소) · bc:payTo(역할 키 또는 주소) · bc:payAmountVar(금액 변수).
+  담당자(구매자)가 컨트랙트에 approve 한 뒤 완료하면 transferFrom(구매자 → 공급사 주소) 이 실행된다.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bc="http://blockflow.dev/schema/bpmn/bc"
+                  id="Definitions_InvoicePayment" targetNamespace="http://blockflow.dev/examples">
+  <bpmn:process id="InvoicePayment" name="청구 결제" isExecutable="true">
+    <bpmn:extensionElements>
+      <bc:variables>
+        <bc:variable name="invoiceHash" type="bytes32"/>
+        <bc:variable name="amount" type="uint256"/>
+        <bc:variable name="accepted" type="bool"/>
+      </bc:variables>
+    </bpmn:extensionElements>
+    <bpmn:laneSet id="LaneSet_1">
+      <bpmn:lane id="Lane_Vendor" name="공급사" bc:roleKey="Vendor">
+        <bpmn:flowNodeRef>Start</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Invoice</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Buyer" name="구매자" bc:roleKey="Buyer">
+        <bpmn:flowNodeRef>Task_Review</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Accepted</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Pay</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Paid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Rejected</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="Start" name="시작"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Invoice" name="청구" bc:fn="invoice">
+      <bpmn:extensionElements>
+        <bc:inputs>
+          <bc:input variable="invoiceHash" label="청구서"/>
+          <bc:input variable="amount" label="금액"/>
+        </bc:inputs>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="Task_Review" name="검토" bc:fn="review">
+      <bpmn:extensionElements><bc:inputs><bc:input variable="accepted" label="승인 여부"/></bc:inputs></bpmn:extensionElements>
+      <bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Accepted" name="승인?" default="Flow_5">
+      <bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing><bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Pay" name="결제" bc:fn="pay" bc:payToken="0x1000000000000000000000000000000000000001" bc:payTo="Vendor" bc:payAmountVar="amount">
+      <bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_6</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Paid" name="결제됨"><bpmn:incoming>Flow_6</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="거절" bc:outcome="rejected"><bpmn:incoming>Flow_5</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Invoice"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Invoice" targetRef="Task_Review"/>
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_Review" targetRef="Gateway_Accepted"/>
+    <bpmn:sequenceFlow id="Flow_4" name="예" sourceRef="Gateway_Accepted" targetRef="Task_Pay">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">accepted</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_5" name="아니오" sourceRef="Gateway_Accepted" targetRef="End_Rejected"/>
+    <bpmn:sequenceFlow id="Flow_6" sourceRef="Task_Pay" targetRef="End_Paid"/>
+  </bpmn:process>
+</bpmn:definitions>

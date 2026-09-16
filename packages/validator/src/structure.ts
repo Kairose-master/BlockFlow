@@ -76,6 +76,13 @@ export function checkStructure(ir: IR): string[] {
         for (const inp of n.inputs) {
           if (!varNames.has(inp.variable)) problems.push(`태스크 ${n.id} 의 입력 변수가 선언되지 않음: ${inp.variable}`);
         }
+        if (n.payment) {
+          const amount = ir.variables.find((v) => v.name === n.payment!.amountVar);
+          if (!amount) problems.push(`결제 태스크 ${n.id} 의 금액 변수가 선언되지 않음: ${n.payment.amountVar}`);
+          else if (amount.type !== "uint256") problems.push(`결제 태스크 ${n.id} 의 금액 변수 ${amount.name} 은 uint256 이어야 함`);
+          if ("role" in n.payment.to && !roleKeys.has(n.payment.to.role)) problems.push(`결제 태스크 ${n.id} 의 받는 역할이 선언되지 않음: ${n.payment.to.role}`);
+          if (!/^0x[0-9a-fA-F]{40}$/.test(n.payment.token)) problems.push(`결제 태스크 ${n.id} 의 토큰 주소가 잘못됨`);
+        }
         break;
       case "xorSplit": {
         const flows = new Map(ir.flows.map((f) => [f.id, f]));

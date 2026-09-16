@@ -10,6 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Mustache from "mustache";
 import { type IR, maskOf, nodesOfKind, userTasks } from "@blockflow/ir";
+import { getAddress } from "viem";
 import { roleConst, screamingSnake, taskConst, uniqueName } from "./names";
 import { defaultRoleAddress, type Plan, planScenarios, solValue } from "./scenarios";
 
@@ -56,12 +57,15 @@ export function generateFoundryTest(ir: IR, opts: FoundryTestOptions = {}): stri
   const roleIndex = new Map(ir.roles.map((r, i) => [r.key, i]));
   const plans = opts.plans ?? planScenarios(ir);
 
+  const tokens = [...new Set(tasks.filter((t) => t.payment).map((t) => getAddress(t.payment!.token)))];
   const ctx = {
     contractName: name,
+    hasPayment: tokens.length > 0,
+    tokens: tokens.map((t) => ({ address: t })),
     importPath: opts.importPath ?? `../../src/${name}.sol`,
     roleCount: ir.roles.length,
     accList: ir.roles.map((_, i) => solAddress(defaultRoleAddress(i))).join(", "),
-    roles: ir.roles.map((r, i) => ({ var: roleVar(r.key), addr: solAddress(defaultRoleAddress(i)), const: roleConst(r.key) })),
+    roles: ir.roles.map((r, i) => ({ index: i, var: roleVar(r.key), addr: solAddress(defaultRoleAddress(i)), const: roleConst(r.key) })),
     taskConsts: tasks.map((t) => ({ const: taskConstOf.get(t.id) })),
     roleVars: ir.roles.map((r) => roleVar(r.key)).join(", "),
     allFlowsMask: hex(maskOf(ir, ir.flows.map((f) => f.id))),

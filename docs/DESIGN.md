@@ -79,6 +79,7 @@ EVM 체인 (Base Sepolia → Base) 또는 Kaia Kairos → Kaia : ProcessContract
 | `bpmn:Process` | `bc:variables` | 프로세스 변수 선언 `{name, type, initial}` |
 | `bpmn:Lane` | `bc:roleKey`, `bc:bindingMode` (`static | ownerRebind | open`) | 역할 상수 이름, 바인딩 방식 |
 | `bpmn:UserTask` | `bc:inputs`, `bc:taskId` | 완료 시 입력값 → 함수 인자 + form-js 필드; 이벤트/UI 용 정수 ID |
+| `bpmn:UserTask` (L1) | `bc:payToken`, `bc:payTo`, `bc:payAmountVar` | 결제 태스크: 완료 시 `IERC20(token).transferFrom(msg.sender, to, amount)` — **구현됨** |
 | `bpmn:SequenceFlow` | `conditionExpression` (bc:expr) | 4.4 DSL |
 | `bpmn:ExclusiveGateway` | `default` | 기본 플로우 필수 (토큰 소실 방지) |
 

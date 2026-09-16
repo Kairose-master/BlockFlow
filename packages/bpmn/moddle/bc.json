@@ -112,6 +112,21 @@
           "name": "tag",
           "isAttr": true,
           "type": "String"
+        },
+        {
+          "name": "payToken",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "payTo",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "payAmountVar",
+          "isAttr": true,
+          "type": "String"
         }
       ]
     },

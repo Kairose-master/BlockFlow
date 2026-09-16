@@ -20,8 +20,8 @@ const read = (f: string) => readFileSync(join(EXAMPLES, f), "utf8");
 const files = readdirSync(EXAMPLES).filter((f) => f.endsWith(".bpmn")).sort();
 
 describe("BPMN → IR", () => {
-  it("손으로 그린 BPMN 이 5개 있다 (승인/구매/여행예약/논문심사/공급망)", () => {
-    expect(files).toEqual(["expense-approval.bpmn", "paper-review.bpmn", "purchase-order.bpmn", "supply-chain.bpmn", "travel-booking.bpmn"]);
+  it("손으로 그린 BPMN 이 5개(승인/구매/여행예약/논문심사/공급망) + L1 결제 예시 1개 있다", () => {
+    expect(files).toEqual(["expense-approval.bpmn", "invoice-payment.bpmn", "paper-review.bpmn", "purchase-order.bpmn", "supply-chain.bpmn", "travel-booking.bpmn"]);
   });
 
   for (const f of files) {
