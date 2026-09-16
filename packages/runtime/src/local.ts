@@ -93,6 +93,13 @@ export class LocalEvmAdapter implements ProcessAdapter {
     });
   }
 
+  /** 주소에 런타임 코드를 심는다 (데모 토큰 등). 실제 체인에는 없는 개발용 기능. */
+  async etch(address: Address, runtimeCode: `0x${string}`): Promise<void> {
+    const addr = new EjsAddress(hexToBytes(address));
+    if (!(await this.vm.stateManager.getAccount(addr))) await this.vm.stateManager.putAccount(addr, createAccount({ balance: 0n }));
+    await this.vm.stateManager.putCode(addr, hexToBytes(runtimeCode));
+  }
+
   async deploy(compiled: CompiledProcess, owner: Signer) {
     const from = owner as LocalSigner;
     const data = encodeDeployData({ abi: compiled.abi, bytecode: compiled.bytecode, args: [owner.address] });

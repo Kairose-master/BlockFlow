@@ -15,6 +15,8 @@ interface Task {
 export function TaskForm({ address, ir, instance, task, onDone }: { address: string; ir: IR; instance: string; task: Task; onDone: (message: string) => void }) {
   const node = ir.nodes.find((n) => (n.kind === "userTask" || n.kind === "serviceTask") && n.id === task.id);
   const inputs = node?.kind === "userTask" || node?.kind === "serviceTask" ? node.inputs.map((i) => ({ ...i, type: ir.variables.find((v) => v.name === i.variable)?.type ?? "uint256" })) : [];
+  const payment = node?.kind === "userTask" ? node.payment : undefined;
+  const payTo = payment ? ("role" in payment.to ? ir.roles.find((r) => r.key === (payment.to as { role: string }).role)?.label ?? "" : payment.to.address) : "";
   // 화면에 보이는 기본값(예/아니오 → 예)이 그대로 전송되도록 초기 상태에 넣는다.
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(inputs.filter((i) => i.type === "bool").map((i) => [i.variable, "true"])));
   const [busy, setBusy] = useState(false);
@@ -32,8 +34,9 @@ export function TaskForm({ address, ir, instance, task, onDone }: { address: str
         else if (inp.type === "bool") args[inp.variable] = raw === "true";
         else args[inp.variable] = raw;
       }
-      const r = await api<{ ended: boolean; completed: boolean | null }>(`/api/processes/${address}/tasks`, { method: "POST", body: JSON.stringify({ instance, task: task.name, args }) });
-      const msg = r.ended ? (r.completed ? "완료됐어요. 이 건은 정상 종료됐어요." : "완료됐어요. 이 건은 중단(반려)으로 끝났어요.") : "완료됐어요. 다음 담당자 차례예요.";
+      const r = await api<{ ended: boolean; completed: boolean | null; paid: { amount: string; to: string } | null }>(`/api/processes/${address}/tasks`, { method: "POST", body: JSON.stringify({ instance, task: task.name, args }) });
+      const paidMsg = r.paid ? ` ${r.paid.to}에게 ${r.paid.amount} 토큰을 보냈어요.` : "";
+      const msg = (r.ended ? (r.completed ? "완료됐어요. 이 건은 정상 종료됐어요." : "완료됐어요. 이 건은 중단(반려)으로 끝났어요.") : "완료됐어요. 다음 담당자 차례예요.") + paidMsg;
       setDone(msg);
       onDone(msg);
     } catch (e) {
@@ -67,6 +70,11 @@ export function TaskForm({ address, ir, instance, task, onDone }: { address: str
           )}
         </label>
       ))}
+      {payment && (
+        <p className="text-xs text-amber-700 mb-2" data-testid="payment-notice">
+          완료하면 [{payment.amountVar}] 만큼의 토큰이 {payTo}에게 지급돼요. 지출 승인은 자동으로 처리해요.
+        </p>
+      )}
       {error && <p className="text-red-600 mb-2" data-testid="task-error">{error}</p>}
       <button className="btn btn-primary" disabled={busy} onClick={() => void submit()} data-testid={`complete-${task.name}`}>{busy ? "처리 중…" : "완료"}</button>
     </div>

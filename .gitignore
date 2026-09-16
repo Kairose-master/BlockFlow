@@ -18,5 +18,6 @@ contracts/broadcast/
 # Next.js / Playwright
 .next/
 next-env.d.ts
+*.tsbuildinfo
 apps/modeler/test-results/
 apps/modeler/playwright-report/

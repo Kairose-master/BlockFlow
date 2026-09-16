@@ -15,8 +15,9 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { IR } from "@blockflow/ir";
 import {
   type Address, type CompiledProcess, Indexer, type IndexerSnapshot, LocalEvmAdapter, localSigner, type ProcessAdapter, type Signer,
-  SimulationFailed, translateError, ViemAdapter, type ViemSigner, probeRpc, describeProbe,
+  SimulationFailed, translateError, ViemAdapter, type ViemSigner, probeRpc, describeProbe, ERC20_ABI, DEMO_ERC20_SOURCE, paymentTokens,
 } from "@blockflow/runtime";
+import { compileSolidity } from "./compile";
 
 export interface DemoUser {
   address: Address;
@@ -154,8 +155,39 @@ export class Engine {
     if (previous) previous.supersededBy = r.address;
     // L1 서비스 태스크가 있으면 데모 오라클을 응답자로 지정
     if (ir.nodes.some((n) => n.kind === "serviceTask")) await this.adapter.send(r.address, compiled.abi, "setOracle", [this.oracle.address], owner.signer);
+    // L1 결제 태스크: 로컬 모드면 참조 주소에 데모 토큰을 심고 모든 데모 사용자에게 잔액을 준다
+    await this.ensureDemoTokens(ir);
     this.save();
     return rec;
+  }
+
+  private demoTokens = new Set<string>();
+
+  /** 로컬 모드 전용: 결제 태스크가 참조하는 토큰 주소에 데모 ERC-20 을 심고 사용자마다 1e24 를 준다 */
+  private async ensureDemoTokens(ir: IR): Promise<void> {
+    if (!(this.adapter instanceof LocalEvmAdapter)) return;
+    for (const token of paymentTokens(ir)) {
+      if (this.demoTokens.has(token)) continue;
+      const c = compileSolidity("DemoERC20", DEMO_ERC20_SOURCE, true);
+      if (!c.deployedBytecode) throw new Error("데모 토큰 컴파일 실패");
+      await this.adapter.etch(token as Address, c.deployedBytecode);
+      for (const u of this.users) await this.adapter.send(token as Address, ERC20_ABI, "mint", [u.address, 10n ** 24n], this.owner.signer);
+      this.demoTokens.add(token);
+    }
+  }
+
+  /** 결제 태스크 완료 전에 담당자의 지출 승인(allowance)이 모자라면 approve 를 대신 보낸다. 승인했으면 true. */
+  async ensureAllowance(token: Address, spender: Address, user: DemoUser, amount: bigint): Promise<boolean> {
+    const allowance = (await this.adapter.read(token, ERC20_ABI, "allowance", [user.address, spender])) as bigint;
+    if (allowance >= amount) return false;
+    const balance = (await this.adapter.read(token, ERC20_ABI, "balanceOf", [user.address])) as bigint;
+    if (balance < amount) throw new ApiError(400, `토큰 잔액이 모자라요 (필요 ${amount}, 보유 ${balance})`);
+    await this.adapter.send(token, ERC20_ABI, "approve", [spender, amount], user.signer);
+    return true;
+  }
+
+  async tokenBalance(token: Address, who: Address): Promise<bigint> {
+    return (await this.adapter.read(token, ERC20_ABI, "balanceOf", [who])) as bigint;
   }
 
   /** process.id 의 현재 버전 (대체되지 않은 배포) */

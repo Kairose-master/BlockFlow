@@ -231,3 +231,43 @@ test("L1 오라클: 외부 서비스 단계는 지정된 오라클 사용자만 
   await page.getByTestId("complete-send_").click();
   await expect(page.getByTestId("task-done")).toContainText("정상 종료");
 });
+
+test("L1 결제: 결제 태스크를 완료하면 지출 승인 없이도 토큰이 지급된다 (로컬 데모 토큰)", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await expect(page.getByTestId("user-select")).toBeVisible();
+  await selectUser(page, "운영자 (소유자)");
+  await page.getByTestId("example-select").selectOption("invoice-payment");
+  await expect(page.locator('[data-element-id="Task_Pay"]')).toBeVisible();
+  await page.getByTestId("compile").click();
+  await expect(page.getByTestId("compile-status")).toContainText("컴파일 성공", { timeout: 30_000 });
+  await page.getByTestId("deploy").click();
+  await expect(page).toHaveURL(/\/processes\/0x/, { timeout: 30_000 });
+  await page.getByTestId("new-instance").click();
+  await page.getByTestId("role-Vendor").selectOption({ label: "정공급" });
+  await page.getByTestId("role-Buyer").selectOption({ label: "최구매" });
+  await page.getByTestId("create-confirm").click();
+  await expect(page.getByTestId("instance-1")).toBeVisible();
+
+  await selectUser(page, "정공급");
+  await page.goto("/todo");
+  await expect(page.getByTestId("todo-card")).toHaveCount(1);
+  await page.getByTestId("field-invoiceHash").fill("INV-2026-001");
+  await page.getByTestId("field-amount").fill("2500");
+  await page.getByTestId("complete-invoice").click();
+  await expect(page.getByTestId("task-done")).toBeVisible();
+
+  // 최구매는 앞 테스트(경비 승인 2번째 건 담당자 교체)의 할 일도 갖고 있으므로 이 프로세스 카드만 본다
+  await selectUser(page, "최구매");
+  await page.goto("/todo");
+  const mine = page.getByTestId("todo-card").filter({ hasText: "청구 결제" });
+  await expect(mine).toHaveCount(1, { timeout: 15_000 });
+  await mine.getByTestId("complete-review").click(); // 승인 여부 기본값 "예"
+  await expect(page.getByTestId("task-done")).toBeVisible();
+  // 결제 카드
+  await expect(mine).toHaveCount(1, { timeout: 15_000 });
+  await expect(mine.getByTestId("payment-notice")).toContainText("공급사");
+  await mine.getByTestId("complete-pay").click();
+  await expect(page.getByTestId("task-done")).toContainText("2500 토큰", { timeout: 15_000 });
+  await expect(page.getByTestId("task-done")).toContainText("정상 종료");
+});

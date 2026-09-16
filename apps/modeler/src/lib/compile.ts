@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 
 interface SolcOut {
   errors?: { severity: string; formattedMessage: string }[];
-  contracts?: Record<string, Record<string, { abi: Abi; evm: { bytecode: { object: string } } }>>;
+  contracts?: Record<string, Record<string, { abi: Abi; evm: { bytecode: { object: string }; deployedBytecode?: { object: string } } }>>;
 }
 
 /** 배포 대상 EVM 버전 (BLOCKFLOW_EVM_VERSION). 기본 cancun. FISCO BCOS 3.7 LTS 같은 구버전 노드는 paris/shanghai. */
@@ -19,17 +19,21 @@ export function targetEvmVersion(): "paris" | "shanghai" | "cancun" {
   return v === "paris" || v === "shanghai" ? v : "cancun";
 }
 
-export function compileSolidity(name: string, source: string) {
+export function compileSolidity(name: string, source: string, withDeployed = false) {
   const solc = require("solc") as { compile: (input: string) => string; version: () => string };
   const input = {
     language: "Solidity",
     sources: { [`${name}.sol`]: { content: source } },
-    settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: targetEvmVersion(), outputSelection: { "*": { "*": ["abi", "evm.bytecode.object"] } } },
+    settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: targetEvmVersion(), outputSelection: { "*": { "*": ["abi", "evm.bytecode.object", ...(withDeployed ? ["evm.deployedBytecode.object"] : [])] } } },
   };
   const out = JSON.parse(solc.compile(JSON.stringify(input))) as SolcOut;
   const diagnostics = (out.errors ?? []).map((e) => `${e.severity}: ${e.formattedMessage}`);
   const c = out.contracts?.[`${name}.sol`]?.[name];
-  return { diagnostics, abi: (c?.abi ?? []) as Abi, bytecode: c ? (`0x${c.evm.bytecode.object}` as `0x${string}`) : undefined, solcVersion: solc.version() };
+  return {
+    diagnostics, abi: (c?.abi ?? []) as Abi, solcVersion: solc.version(),
+    bytecode: c ? (`0x${c.evm.bytecode.object}` as `0x${string}`) : undefined,
+    deployedBytecode: c?.evm.deployedBytecode ? (`0x${c.evm.deployedBytecode.object}` as `0x${string}`) : undefined,
+  };
 }
 
 export type CompileOutcome =

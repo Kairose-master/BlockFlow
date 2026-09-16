@@ -19,6 +19,7 @@
   },
   "include": [
     "packages/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "scripts/**/*.mts"
   ]
 }

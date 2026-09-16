@@ -19,6 +19,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm bench
       - name: 생성 컨트랙트·테스트가 커밋본과 같은지 (diff 0)
         run: |
           pnpm gen:examples

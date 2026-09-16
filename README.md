@@ -76,10 +76,11 @@ BLOCKFLOW_EVM_VERSION=paris pnpm modeler       # 구버전 EVM 노드용 컴파�
 | 항목 | 상태 |
 |---|---|
 | C6 프로세스 버전 교체 | 완료. 같은 프로세스를 다시 배포하면 새 버전이 되고, 이전 버전은 새 건을 받지 않는다(진행 중인 건은 이전 버전에서 끝냄, 8.2 기본 정책) |
-| L1 결제 태스크 (`bc:payToken`·`bc:payTo`·`bc:payAmountVar`) | 완료. 완료 시 담당자가 ERC-20 을 역할/주소에 전송 (transferFrom, nonReentrant + CEI, 6.5). 예시 `invoice-payment.bpmn`, 생성 Foundry 테스트가 토큰 목을 심어 검증 |
+| L1 결제 태스크 (`bc:payToken`·`bc:payTo`·`bc:payAmountVar`) | 완료. 완료 시 담당자가 ERC-20 을 역할/주소에 전송 (transferFrom, nonReentrant + CEI, 6.5). 예시 `invoice-payment.bpmn`, 생성 Foundry 테스트가 토큰 목을 심어 검증. 콘솔(로컬 모드)은 데모 토큰을 자동으로 심고 완료 직전에 지출 승인(approve)을 대신 처리하므로 사용자는 "완료" 만 누른다 |
 | L1 타이머 경계 이벤트 (`bc:deadlineVar` 또는 `bc:deadlineSeconds`) | 완료. 태스크 활성화 시각(startedAt)+기한이 지나면 누구나 `expire{Task}(id)` 로 만료 경로 진행. 예시 `leave-request.bpmn`, 보드에 남은 시간·"만료 처리"·(로컬) 시간 건너뛰기 |
 | 신용서비스 프리셋 (앵커 논문 도메인) | 완료. `credit-review.bpmn` "신용 심사 (템플릿)" — 신청·평가(심사 기한 타이머)·고액 위원회 승인·약정 지급 |
 | 모델러 초안 자동 저장·복원, 보드 → "다이어그램 편집 (새 버전)" | 완료 |
+| 논문화 가능한 측정 (11장) | `pnpm bench` 가 예시 9개의 파싱·soundness·생성·컴파일 시간, 바이트코드 크기, 배포·인스턴스·태스크 가스를 재서 `docs/measurements.md` 로 쓴다 |
 | L1 서비스 태스크 (오라클 콜백, `bpmn:serviceTask`) | 완료. 토큰이 도착하면 `ServiceRequested(id, taskId)` 이벤트, 소유자가 `setOracle` 로 지정한 주소만 응답 함수 호출(`onlyOracle`). 예시 `fx-transfer.bpmn`, 콘솔의 데모 오라클 사용자 |
 | L1 메시지 이벤트·OR 게이트웨이, 버전 교체 투표 | 미구현 |
 
@@ -116,7 +117,8 @@ pnpm check:sound     # 예시 IR 의 soundness 검사 결과 출력
 pnpm bpmn lint packages/bpmn/examples/expense-approval.bpmn      # 규칙 R1~R12 검사
 pnpm bpmn compile packages/bpmn/examples/expense-approval.bpmn   # BPMN → Solidity 를 stdout 으로
 pnpm codegen packages/ir/examples/expense-approval.json          # IR → Solidity
-pnpm gen:examples    # BPMN 예시 5개 → contracts/src/*.sol + contracts/test/generated/*.t.sol 재생성
+pnpm gen:examples    # BPMN 예시 → contracts/src/*.sol + contracts/test/generated/*.t.sol 재생성
+pnpm bench           # 예시 9개 측정표 → docs/measurements.md (가이드 6.8·11장)
 ```
 
 Foundry 가 있으면:
