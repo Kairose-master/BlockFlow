@@ -46,11 +46,27 @@
 pnpm modeler   # http://localhost:3000
 ```
 
-**Phase 3 선행** — `packages/runtime`: 배포·서명 어댑터 인터페이스를 먼저 고정 (가이드 9.5). 쓰기는 항상 시뮬레이션 → 성공한 호출만 전송,
-커스텀 에러는 비전문가 문장으로 번역 (8.4), 소유자 제어는 Safe Transaction Builder 호환 "서명 없는 트랜잭션 패키지" 로 내보낼 수 있다.
-CI 에 Slither 정적 분석(V3)을 추가했다. 코딩 에이전트용 절차는 `CLAUDE.md` 와 `.claude/skills/blockflow/`.
+**Phase 3 "런타임" — 구현 완료 (지갑·가스 스폰서 제외)**
 
-Phase 2 (모델러), 3 (런타임·지갑) 는 `docs/DESIGN.md` 의 로드맵을 따른다.
+| 완료 기준 | 상태 |
+|---|---|
+| 배포 어댑터 | `packages/runtime`: `ProcessAdapter`(deploy/read/simulate/send/watch) + 로컬 EVM 어댑터 + viem 어댑터(JSON-RPC, 폴링 재생). Hardhat 3 노드(`tools/devnode`) 위에서 테스트 |
+| 인덱서 | `Indexer`: MarkingChanged/TaskCompleted 로 인스턴스 상태·타임라인 복원, 스냅샷 저장 후 lastBlock 부터 재생, read() 폴백 |
+| 4개 화면 | `apps/modeler`: 그리기(모델러+배포) / 내 프로세스(카드, 일시정지) / 프로세스 보드(다이어그램에 marking 색칠, 새 건 시작, 담당자 교체, 기록) / 할 일(내 차례 카드 + 폼) / 기록(타임라인) |
+| 임베디드 지갑 + 스폰서 | **미구현**. 지금은 데모 사용자 선택으로 서명자를 고른다(로컬 체인·Hardhat). Privy/Base Account + paymaster 또는 Kaia 대납은 `Signer` 교체로 붙인다 (9장) |
+| 3인 3역할로 인스턴스 완주, 가스 0원 체감 | Playwright E2E: 배포 → 새 건(담당자 3명) → 신청·승인·지급·영수증 → 완료, 담당자 교체, 일시정지. 로컬 체인 모드에선 가스가 사용자에게 보이지 않는다 |
+
+```bash
+pnpm modeler                                   # 로컬 체인 모드 (설치·키 없이 바로)
+pnpm --filter @blockflow/devnode node          # Hardhat 3 JSON-RPC 노드 (다른 터미널)
+BLOCKFLOW_RPC_URL=http://127.0.0.1:8545 pnpm modeler   # 실제 JSON-RPC 모드 (chainId 31337 이면 Hardhat 키 자동)
+```
+
+`packages/runtime` 의 쓰기는 항상 시뮬레이션 → 성공한 호출만 전송하고, 커스텀 에러는 비전문가 문장으로 번역한다 (8.4).
+소유자 제어는 Safe Transaction Builder 호환 "서명 없는 트랜잭션 패키지" 로 내보낼 수 있다. CI 에 Slither 정적 분석(V3).
+코딩 에이전트용 절차는 `CLAUDE.md` 와 `.claude/skills/blockflow/`.
+
+남은 것: 임베디드 지갑 + 가스 스폰서(9장), Postgres/IPFS 저장소, L1 요소(Phase 4). `docs/DESIGN.md` 로드맵 참고.
 
 ## 구조
 
@@ -62,7 +78,9 @@ packages/
   bpmn/        @blockflow/bpmn      BPMN XML → IR 파서, 규칙 R1~R12, bc moddle 확장, 예시 5개 (4장, 5.2, 부록 A)
   runtime/     @blockflow/runtime   어댑터 인터페이스(deploy/simulate/send/watch), 에러 번역, 서명 없는 tx 패키지, 로컬 EVM (8.4, 9.5)
 apps/
-  modeler/     @blockflow/modeler   Next.js + bpmn-js 모델러: 팔레트 제한, bc 속성 패널, 조건 빌더, 즉시 검사, 미리보기, 컴파일 API (Phase 2)
+  modeler/     @blockflow/modeler   Next.js 앱: 모델러(Phase 2) + 제어 화면 4개와 배포/인스턴스/태스크 API (Phase 3)
+tools/
+  devnode/     @blockflow/devnode   Hardhat 3 로컬 JSON-RPC 노드 (viem 어댑터 테스트, rpc 모드 개발)
 contracts/
   src/         생성된 컨트랙트 (손으로 고치지 않음)                                         (부록 C)
   test/        생성된 Foundry 테스트(generated/) + 부록 D 참조본                             (부록 D, 7.6)

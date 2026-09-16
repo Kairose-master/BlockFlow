@@ -1,0 +1,13 @@
+{
+  "name": "@blockflow/devnode",
+  "version": "0.1.0",
+  "private": true,
+  "description": "로컬 개발 체인 (Hardhat 3 node). 실제 JSON-RPC 위에서 viem 어댑터를 시험한다.",
+  "type": "module",
+  "scripts": {
+    "node": "hardhat node --port 8545"
+  },
+  "devDependencies": {
+    "hardhat": "^3.16.0"
+  }
+}

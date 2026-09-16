@@ -18,3 +18,17 @@ pnpm modeler:e2e        # Playwright (빌드 후). 로컬 Chromium 을 쓰려면
 ```
 
 bpmn-js·token-simulation 의 워터마크는 라이선스 조건대로 유지한다.
+
+## 제어 화면 (Phase 3)
+
+| 화면 | 경로 | 온체인 |
+|---|---|---|
+| 그리기 | `/` | 컴파일 성공 후 "배포하기" (C1, 소유자) |
+| 내 프로세스 | `/processes` | 카드(진행 n건), 일시정지/재개 (C5, 소유자) |
+| 프로세스 보드 | `/processes/[address]` | 다이어그램에 marking 색칠·활성 태스크 펄스, 새 건 시작 + 담당자 지정 (C2), 담당자 교체 (C4), 내 차례 폼 (C3), 기록 |
+| 할 일 | `/todo` | 내가 담당자인 활성 태스크 카드 → 폼 → 완료 (C3) |
+| 기록 | `/history` | 모든 프로세스의 타임라인 |
+
+"나는" 셀렉터로 데모 사용자를 고른다(임베디드 지갑 자리). 서버는 `x-blockflow-user` 헤더로 서명자를 정하고, 쓰기는 항상 시뮬레이션 뒤에 보낸다.
+
+환경변수: `BLOCKFLOW_RPC_URL`(없으면 로컬 인메모리 체인), `BLOCKFLOW_CHAIN_ID`(기본 31337), `BLOCKFLOW_KEYS`(쉼표 구분 개인키; 31337 이면 Hardhat 키 자동), `BLOCKFLOW_STATE`(스냅샷 경로).

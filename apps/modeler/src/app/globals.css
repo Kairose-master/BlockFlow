@@ -36,3 +36,9 @@ html, body { height: 100%; margin: 0; background: var(--bf-bg); color: var(--bf-
 
 /* 토큰 시뮬레이션의 자체 토글은 숨긴다 (툴바의 "미리보기" 버튼이 대신한다). 팔레트 왼쪽 위를 가려 클릭을 막기도 한다. */
 .bts-toggle-mode { display: none; }
+
+/* 보드: 토큰이 있는 플로우, 활성 태스크, 종료 */
+.djs-element.bf-token .djs-visual > path { stroke: #2563eb !important; stroke-width: 4px !important; }
+.djs-element.bf-enabled .djs-visual > rect { stroke: #2563eb !important; stroke-width: 3px !important; fill: #eff6ff !important; animation: bf-pulse 1.2s ease-in-out infinite; }
+.djs-element.bf-done .djs-visual > circle { stroke: #16a34a !important; stroke-width: 4px !important; }
+@keyframes bf-pulse { 0%, 100% { filter: drop-shadow(0 0 0 rgba(37,99,235,0)); } 50% { filter: drop-shadow(0 0 6px rgba(37,99,235,.8)); } }

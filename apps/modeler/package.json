@@ -14,6 +14,7 @@
     "@blockflow/bpmn": "workspace:*",
     "@blockflow/codegen": "workspace:*",
     "@blockflow/ir": "workspace:*",
+    "@blockflow/runtime": "workspace:*",
     "@blockflow/validator": "workspace:*",
     "bpmn-auto-layout": "^1.3.0",
     "bpmn-js": "^18.28.0",
@@ -22,7 +23,8 @@
     "next": "^16.3.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "solc": "0.8.37"
+    "solc": "0.8.37",
+    "viem": "^2.56.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

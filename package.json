@@ -38,7 +38,5 @@
     "typescript": "^5.9.0",
     "viem": "^2.56.5",
     "vitest": "^3.2.0"
-  },
-  "dependencies": {
   }
 }

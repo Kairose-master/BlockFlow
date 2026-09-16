@@ -12,7 +12,8 @@ pnpm gen:examples                 # packages/bpmn/examples/*.bpmn → contracts/
 pnpm bpmn lint <file.bpmn>        # 규칙 R1~R12
 pnpm bpmn compile <file.bpmn>     # BPMN → Solidity (stdout)
 cd contracts && forge test -vv    # Foundry 가 있을 때 (CI 가 항상 실행)
-pnpm modeler                      # 모델러 개발 서버 (apps/modeler, http://localhost:3000)
+pnpm modeler                      # 앱 개발 서버 (apps/modeler, http://localhost:3000) — 로컬 체인 모드
+pnpm --filter @blockflow/devnode node   # Hardhat 3 노드; BLOCKFLOW_RPC_URL=http://127.0.0.1:8545 로 rpc 모드
 pnpm modeler:build && PW_CHROMIUM=/path/to/chrome pnpm modeler:e2e   # Playwright E2E
 ```
 
@@ -29,4 +30,5 @@ pnpm modeler:build && PW_CHROMIUM=/path/to/chrome pnpm modeler:e2e   # Playwrigh
 ## 패키지 의존 방향
 
 `ir` ← `validator` ← `codegen` ← `bpmn`, `runtime` ← `ir`, `apps/modeler` ← 전부. 역방향 import 금지 (테스트는 예외).
+런타임 쓰기 호출은 반드시 `ProcessAdapter.send`(simulate 선행) 를 거친다. `packages/runtime/test/viem.test.ts` 는 Hardhat 노드를 스폰하므로 90초까지 걸릴 수 있다.
 브라우저 번들에 들어가는 코드(`packages/bpmn`, `@blockflow/codegen/expr`, `/names`)는 `node:fs` 등 Node 전용 API 를 쓰지 않는다.

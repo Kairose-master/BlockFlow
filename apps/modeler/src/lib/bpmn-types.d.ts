@@ -12,3 +12,11 @@ declare module "bpmn-js-token-simulation" {
   const mod: unknown;
   export default mod;
 }
+declare module "bpmn-js/lib/NavigatedViewer" {
+  const Viewer: new (options: Record<string, unknown>) => {
+    importXML(xml: string): Promise<{ warnings: unknown[] }>;
+    get<T = unknown>(name: string): T;
+    destroy(): void;
+  };
+  export default Viewer;
+}

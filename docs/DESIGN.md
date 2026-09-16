@@ -169,7 +169,11 @@ L0 는 상태 수가 수백~수천이라 밀리초 안에 끝난다.
 SMTChecker: `engine: chc`, `solvers: [z3]`, `targets: [assert, underflow, overflow, outOfBounds]`, `invariants: [contract]`. BMC 는 쓰지 않는다.
 Slither 검출기 → 비전문가 문장 매핑표를 유지. 생성 코드는 고정 골격이라 예상 밖 경고는 템플릿 버그로 취급해 배포를 막는다.
 
-## 8. 런타임·제어 UI (Phase 3)
+## 8. 런타임·제어 UI (Phase 3) — `apps/modeler` 의 /processes, /processes/[addr], /todo, /history
+
+구현 메모: 서버 싱글턴 `Engine`(`src/lib/engine.ts`) 이 어댑터·인덱서·등록부·데모 사용자를 들고 있다. 로컬 모드는 인메모리 체인,
+rpc 모드는 viem 어댑터 + `.blockflow/state.json` 스냅샷. 모든 쓰기 API 는 `x-blockflow-user` 헤더로 서명자를 고르고 simulate → send 를 탄다.
+보드는 `IR.flows[].bpmnId` 로 marking 비트를 다이어그램 플로우에 칠하고, 활성 태스크에 펄스를 준다.
 
 화면 4개: 내 프로세스(카드, 일시정지 토글) / 프로세스 보드(다이어그램 위 토큰, 활성 태스크 펄스) / 할 일(form-js 폼 → 완료) / 기록(타임라인, 재생 슬라이더).
 다이어그램 위 제어 매핑: 시작 이벤트 클릭 = C2, 활성 태스크 클릭 = C3, 레인 헤더 = C4, 프로세스 헤더 = C5, "새 버전 배포" = C6.

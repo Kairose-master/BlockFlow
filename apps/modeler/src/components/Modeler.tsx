@@ -10,6 +10,8 @@ import contextPadModule, { addLane } from "@/lib/context-pad";
 import { INITIAL_XML } from "@/lib/initial";
 import { type Modeler as ModelerType, type Shape, download, getProcess } from "@/lib/bpmn-utils";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { api } from "@/lib/api";
+import { useRouter } from "next/navigation";
 
 interface Example {
   name: string;
@@ -35,6 +37,9 @@ export function Modeler() {
   const [result, setResult] = useState<CompileResult | null>(null);
   const [tab, setTab] = useState<"summary" | "sol">("summary");
   const lintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const [deployError, setDeployError] = useState("");
+  const router = useRouter();
 
   const applyOverlays = useCallback((diags: Diagnostic[]) => {
     const m = modelerRef.current;
@@ -146,6 +151,23 @@ export function Modeler() {
     }
   };
 
+  /** C1 배포: 컴파일이 성공한 현재 다이어그램을 체인에 올리고 보드로 이동한다. */
+  const deploy = async () => {
+    const m = modelerRef.current;
+    if (!m) return;
+    setDeploying(true);
+    setDeployError("");
+    try {
+      const { xml } = await m.saveXML({ format: true });
+      const r = await api<{ address: string }>("/api/processes", { method: "POST", body: JSON.stringify({ xml }) });
+      router.push(`/processes/${r.address}`);
+    } catch (e) {
+      setDeployError((e as Error).message);
+    } finally {
+      setDeploying(false);
+    }
+  };
+
   const focusDiagnostic = (d: Diagnostic) => {
     const m = modelerRef.current;
     if (!m || !d.elementId) return;
@@ -167,7 +189,7 @@ export function Modeler() {
   };
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       <header className="flex items-center gap-2 px-3 py-2 bg-white border-b border-gray-200 text-sm">
         <span className="font-bold text-base mr-2">BlockFlow</span>
         <button className="btn" data-testid="new-diagram" onClick={() => void loadXml(INITIAL_XML)}>새로 만들기</button>
@@ -233,6 +255,8 @@ export function Modeler() {
                 <button className={`btn ${tab === "summary" ? "bg-gray-100" : ""}`} onClick={() => setTab("summary")}>요약</button>
                 <button className={`btn ${tab === "sol" ? "bg-gray-100" : ""}`} onClick={() => setTab("sol")} data-testid="tab-sol">Solidity</button>
                 <button className="btn" onClick={() => download(`${result.ir.process.id}.sol`, result.sol, "text/plain")}>.sol 내려받기</button>
+                <button className="btn btn-primary" onClick={() => void deploy()} disabled={deploying} data-testid="deploy">{deploying ? "배포 중…" : "배포하기"}</button>
+                {deployError && <span className="text-red-600" data-testid="deploy-error">{deployError}</span>}
               </>
             )}
             <button className="btn" onClick={() => setResult(null)}>닫기</button>
