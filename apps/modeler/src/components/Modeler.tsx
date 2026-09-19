@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import BpmnModeler from "bpmn-js/lib/Modeler";
 import TokenSimulationModule from "bpmn-js-token-simulation";
-import { lintBpmn, type Diagnostic } from "@blockflow/bpmn";
+import { lintBpmn, localizeExampleBpmn, type Diagnostic } from "@blockflow/bpmn";
 import bc from "@blockflow/bpmn/moddle/bc.json";
 import paletteModule from "@/lib/palette";
 import contextPadModule, { addLane } from "@/lib/context-pad";
@@ -176,7 +176,7 @@ export function Modeler() {
     };
   }, [runLint, scheduleLint, saveDraft]);
 
-  const loadXml = async (xml: string) => {
+  const loadXml = useCallback(async (xml: string) => {
     const m = modelerRef.current;
     if (!m) return;
     setResult(null);
@@ -191,11 +191,20 @@ export function Modeler() {
         /* */
       }
     } else void saveDraft();
-  };
+  }, [saveDraft]);
+
+  useEffect(() => {
+    const m = modelerRef.current;
+    if (!m || !ready) return;
+    void m.saveXML({ format: true }).then(({ xml }) => {
+      const localized = localizeExampleBpmn(xml, locale);
+      if (localized !== xml) return loadXml(localized);
+    });
+  }, [loadXml, locale, ready]);
 
   const openExample = async (name: string) => {
     if (!name) return;
-    const xml = await (await fetch(`/api/examples/${name}`)).text();
+    const xml = await (await fetch(`/api/examples/${name}?locale=${locale}`)).text();
     await loadXml(xml);
   };
 

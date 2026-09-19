@@ -37,8 +37,13 @@ test("언어 전환은 모델러 핵심 흐름을 영어로 바꾸고 선택을 
   await expect(page.getByTestId("new-diagram")).toHaveText("New diagram");
   await expect(page.getByTestId("diagnostics")).toContainText("Validation");
   await expect(page.getByTestId("example-select")).toContainText("Expense approval");
+  await page.getByTestId("example-select").selectOption("expense-approval");
+  await expect(page.locator('[data-element-id="Task_Submit"]')).toBeVisible();
+  await expect(page.getByTestId("canvas")).toContainText("Submit expense");
+  await expect(page.getByTestId("canvas")).not.toContainText("경비 신청");
   await page.reload();
   await expect(page.getByTestId("new-diagram")).toHaveText("New diagram");
+  await expect(page.getByTestId("canvas")).toContainText("Submit expense");
 });
 
 test("예시(경비 승인)를 열면 규칙 통과, 컴파일 결과가 부록 C 와 같다", async ({ page }) => {
