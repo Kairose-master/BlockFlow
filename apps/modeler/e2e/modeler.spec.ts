@@ -10,7 +10,11 @@ import { expect, test, type Page } from "@playwright/test";
 const REFERENCE = readFileSync(join(__dirname, "..", "..", "..", "contracts", "src", "ExpenseApproval.sol"), "utf8");
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("blockflow.locale.v1", "ko"));
+  await page.addInitScript(() => {
+    if (localStorage.getItem("blockflow.locale.v1") === null) {
+      localStorage.setItem("blockflow.locale.v1", "ko");
+    }
+  });
 });
 
 async function openExample(page: Page, name: string, waitFor = "Task_Submit") {
