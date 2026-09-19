@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { USER_KEY, api, currentUser } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 interface Accounts {
   mode: "local" | "rpc";
@@ -12,13 +13,14 @@ interface Accounts {
 }
 
 const NAV = [
-  { href: "/", label: "그리기" },
-  { href: "/processes", label: "내 프로세스" },
-  { href: "/todo", label: "할 일" },
-  { href: "/history", label: "기록" },
+  { href: "/", ko: "그리기", en: "Design" },
+  { href: "/processes", ko: "내 프로세스", en: "Processes" },
+  { href: "/todo", ko: "할 일", en: "My tasks" },
+  { href: "/history", ko: "기록", en: "History" },
 ];
 
 export function Shell({ children }: { children: React.ReactNode }) {
+  const { locale, setLocale, tr } = useI18n();
   const path = usePathname();
   const [accounts, setAccounts] = useState<Accounts | null>(null);
   const [user, setUser] = useState("");
@@ -45,19 +47,28 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <span className="font-bold mr-3">BlockFlow</span>
         {NAV.map((n) => (
           <Link key={n.href} href={n.href} className={`px-2 py-1 rounded ${path === n.href || (n.href !== "/" && path.startsWith(n.href)) ? "bg-gray-700" : "hover:bg-gray-800"}`}>
-            {n.label}
+            {tr(n.ko, n.en)}
           </Link>
         ))}
         <span className="flex-1" />
         {accounts && (
           <>
-            <span className="text-xs text-gray-400 mr-2">{accounts.mode === "local" ? "로컬 체인 (설치 없음)" : `체인 ${accounts.chainId}`}</span>
-            <label className="text-xs text-gray-400 mr-1">나는</label>
+            <span className="text-xs text-gray-400 mr-2">{accounts.mode === "local" ? tr("로컬 체인 (설치 없음)", "Local chain (no setup)") : `${tr("체인", "Chain")} ${accounts.chainId}`}</span>
+            <label className="text-xs text-gray-400 mr-1">{tr("나는", "Acting as")}</label>
             <select className="bg-gray-800 rounded px-2 py-1 text-sm" value={user} onChange={(e) => choose(e.target.value)} data-testid="user-select">
               {accounts.users.map((u) => <option key={u.address} value={u.address}>{u.label}</option>)}
             </select>
           </>
         )}
+        <button
+          type="button"
+          className="ml-2 rounded border border-gray-600 px-2 py-1 text-xs hover:bg-gray-800"
+          onClick={() => setLocale(locale === "ko" ? "en" : "ko")}
+          aria-label={tr("영어로 전환", "Switch to Korean")}
+          data-testid="locale-toggle"
+        >
+          {locale === "ko" ? "English" : "한국어"}
+        </button>
       </nav>
       <div className="flex-1 min-h-0">{children}</div>
     </div>

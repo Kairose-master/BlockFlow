@@ -4,6 +4,10 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("blockflow.locale.v1", "ko"));
+});
+
 async function selectUser(page: Page, label: string) {
   await page.getByTestId("user-select").selectOption({ label });
 }

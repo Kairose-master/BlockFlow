@@ -12,6 +12,7 @@ import { type Modeler as ModelerType, type Shape, download, getProcess } from "@
 import { PropertiesPanel } from "./PropertiesPanel";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { browserLocale, diagnosticText, EXAMPLE_TITLES, type Locale, useI18n } from "@/lib/i18n";
 
 interface Example {
   name: string;
@@ -36,7 +37,16 @@ function readStorage(store: Storage, key: string): string | null {
   }
 }
 
+function blankDiagram(locale: Locale): string {
+  if (locale === "ko") return INITIAL_XML;
+  return INITIAL_XML
+    .replaceAll('name="새 프로세스"', 'name="New process"')
+    .replace('name="역할 1"', 'name="Role 1"')
+    .replace('name="시작"', 'name="Start"');
+}
+
 export function Modeler() {
+  const { locale, tr } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const modelerRef = useRef<ModelerType | null>(null);
   const [ready, setReady] = useState(false);
@@ -100,49 +110,69 @@ export function Modeler() {
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const modeler = new BpmnModeler({
-      container: containerRef.current,
-      additionalModules: [paletteModule, contextPadModule, TokenSimulationModule],
-      moddleExtensions: { bc },
-    }) as unknown as ModelerType;
-    modelerRef.current = modeler;
-    modeler.on("selection.changed", (e: any) => setSelected(e.newSelection?.[0] ?? null));
-    modeler.on("commandStack.changed", () => {
-      setVersion((v) => v + 1);
-      scheduleLint();
-      void saveDraft();
-    });
-    modeler.on("import.done", () => {
-      setVersion((v) => v + 1);
-      void runLint();
-    });
-    // 우선순위: 보드에서 넘어온 XML → 저장된 초안 → 빈 다이어그램
-    if (openedRef.current === undefined) {
-      openedRef.current = readStorage(sessionStorage, OPEN_KEY);
-      if (openedRef.current) {
-        try {
-          sessionStorage.removeItem(OPEN_KEY);
-        } catch {
-          /* */
+    let disposed = false;
+    let activeModeler: ModelerType | null = null;
+    let initialImport: Promise<void> | null = null;
+
+    // In development React runs the effect setup/cleanup cycle twice. Deferring setup by one
+    // microtask lets the throwaway cycle cancel before bpmn-js starts an asynchronous import.
+    queueMicrotask(() => {
+      if (disposed || !containerRef.current) return;
+      const modeler = new BpmnModeler({
+        container: containerRef.current,
+        additionalModules: [paletteModule, contextPadModule, TokenSimulationModule],
+        moddleExtensions: { bc },
+      }) as unknown as ModelerType;
+      activeModeler = modeler;
+      modelerRef.current = modeler;
+      modeler.on("selection.changed", (e: any) => setSelected(e.newSelection?.[0] ?? null));
+      modeler.on("commandStack.changed", () => {
+        setVersion((v) => v + 1);
+        scheduleLint();
+        void saveDraft();
+      });
+      modeler.on("import.done", () => {
+        setVersion((v) => v + 1);
+        void runLint();
+      });
+      // 우선순위: 보드에서 넘어온 XML → 저장된 초안 → 빈 다이어그램
+      if (openedRef.current === undefined) {
+        openedRef.current = readStorage(sessionStorage, OPEN_KEY);
+        if (openedRef.current) {
+          try {
+            sessionStorage.removeItem(OPEN_KEY);
+          } catch {
+            /* */
+          }
         }
       }
-    }
-    const opened = openedRef.current;
-    const draft = readStorage(localStorage, DRAFT_KEY);
-    const initial = opened ?? draft ?? INITIAL_XML;
-    if (opened) setRestored("open");
-    else if (draft) setRestored("draft");
-    void modeler.importXML(initial).then(() => {
-      setReady(true);
-      if (opened) {
-        modeler.get("canvas").zoom("fit-viewport", "auto");
-        void saveDraft();
-      }
+      const opened = openedRef.current;
+      const draft = readStorage(localStorage, DRAFT_KEY);
+      const initial = opened ?? draft ?? blankDiagram(browserLocale());
+      if (opened) setRestored("open");
+      else if (draft) setRestored("draft");
+      initialImport = modeler.importXML(initial)
+        .then(() => {
+          if (disposed) return;
+          setReady(true);
+          if (opened) {
+            modeler.get("canvas").zoom("fit-viewport", "auto");
+            void saveDraft();
+          }
+        })
+        .catch((error) => {
+          if (!disposed && modelerRef.current === modeler) console.error(error);
+        });
+      void fetch("/api/examples").then((r) => r.json()).then(setExamples).catch(() => setExamples([]));
     });
-    void fetch("/api/examples").then((r) => r.json()).then(setExamples).catch(() => setExamples([]));
+
     return () => {
-      modeler.destroy();
-      modelerRef.current = null;
+      disposed = true;
+      if (modelerRef.current === activeModeler) modelerRef.current = null;
+      const modeler = activeModeler;
+      if (!modeler) return;
+      if (initialImport) void initialImport.finally(() => modeler.destroy());
+      else modeler.destroy();
     };
   }, [runLint, scheduleLint, saveDraft]);
 
@@ -154,7 +184,7 @@ export function Modeler() {
     await m.importXML(xml);
     m.get("canvas").zoom("fit-viewport", "auto");
     setSelected(null);
-    if (xml === INITIAL_XML) {
+    if (xml === INITIAL_XML || xml === blankDiagram("en")) {
       try {
         localStorage.removeItem(DRAFT_KEY);
       } catch {
@@ -177,7 +207,7 @@ export function Modeler() {
     const lane = addLane(m.get("modeling"), participant);
     if (lane) {
       const n = participant.children.filter((c: any) => c.type === "bpmn:Lane").length;
-      m.get("modeling").updateProperties(lane, { name: `역할 ${n}`, "bc:roleKey": `Role${n}` });
+      m.get("modeling").updateProperties(lane, { name: locale === "ko" ? `역할 ${n}` : `Role ${n}`, "bc:roleKey": `Role${n}` });
       m.get("selection").select(lane);
     }
   };
@@ -215,7 +245,7 @@ export function Modeler() {
     if (!result?.ok) return;
     const id = result.ir.process.id;
     const roles = result.ir.roles.map((r) => `${r.key}(${r.label})`).join(", ");
-    const readme = [
+    const readme = locale === "ko" ? [
       `# ${result.ir.process.name} (${id}) 배포 번들`,
       "",
       `- 컴파일: solc ${result.solcVersion.split("+")[0]}, optimizer 200, evmVersion ${result.evmVersion}. 의존성 없음(단일 파일).`,
@@ -230,6 +260,21 @@ export function Modeler() {
       "",
       "## Remix / 기타 EVM",
       "sol 을 열고 같은 컴파일 설정으로 배포하거나, abi + bytecode 로 바로 배포합니다.",
+    ].join("\n") : [
+      `# ${result.ir.process.name} (${id}) deployment bundle`,
+      "",
+      `- Compiler: solc ${result.solcVersion.split("+")[0]}, optimizer 200, evmVersion ${result.evmVersion}. Single-file source with no dependencies.`,
+      `- Constructor: owner(address). Role order for createInstance(address[${result.ir.roles.length}]): ${roles}.`,
+      "",
+      "## FISCO BCOS console",
+      "```",
+      `deploy ${id} <ownerAddress>`,
+      `call ${id} <contractAddress> createInstance [<addr1>,<addr2>,...]`,
+      "```",
+      "Paste the Solidity source into the WeBASE contract IDE, or use BLOCKFLOW_RPC_URL for an Ethereum-compatible executor.",
+      "",
+      "## Remix / other EVM tools",
+      "Deploy the .sol file with the same compiler settings, or use the included ABI and bytecode.",
     ].join("\n");
     download(`${id}.bundle.json`, JSON.stringify({ name: id, sol: result.sol, abi: result.abi, bytecode: result.bytecode, solc: result.solcVersion, evmVersion: result.evmVersion, readme }, null, 2), "application/json");
   };
@@ -275,27 +320,27 @@ export function Modeler() {
     <div className="h-full flex flex-col">
       <header className="flex items-center gap-2 px-3 py-2 bg-white border-b border-gray-200 text-sm">
         <span className="font-bold text-base mr-2">BlockFlow</span>
-        <button className="btn" data-testid="new-diagram" onClick={() => void loadXml(INITIAL_XML)}>새로 만들기</button>
+        <button className="btn" data-testid="new-diagram" onClick={() => void loadXml(blankDiagram(locale))}>{tr("새로 만들기", "New diagram")}</button>
         {restored && (
           <span className="text-xs text-gray-500" data-testid="restored-notice">
-            {restored === "open" ? "보드에서 가져온 다이어그램이에요. 고쳐서 배포하면 새 버전이 돼요." : "이전 초안을 불러왔어요."}
+            {restored === "open" ? tr("보드에서 가져온 다이어그램이에요. 고쳐서 배포하면 새 버전이 돼요.", "Loaded from the process board. Deploying edits creates a new version.") : tr("이전 초안을 불러왔어요.", "Restored your previous draft.")}
           </span>
         )}
         <select className="btn" data-testid="example-select" defaultValue="" onChange={(e) => void openExample(e.target.value)}>
-          <option value="">예시 열기…</option>
-          {examples.map((ex) => <option key={ex.name} value={ex.name}>{ex.title}</option>)}
+          <option value="">{tr("예시 열기…", "Open an example…")}</option>
+          {examples.map((ex) => <option key={ex.name} value={ex.name}>{locale === "en" ? EXAMPLE_TITLES[ex.name] ?? ex.title : ex.title}</option>)}
         </select>
-        <button className="btn" data-testid="add-lane" onClick={onAddLane} disabled={!ready}>+ 역할 추가</button>
+        <button className="btn" data-testid="add-lane" onClick={onAddLane} disabled={!ready}>{tr("+ 역할 추가", "+ Add role")}</button>
         <button className={`btn ${simulating ? "bg-blue-50 border-blue-300" : ""}`} data-testid="simulate" onClick={toggleSimulation} disabled={!ready}>
-          {simulating ? "미리보기 끄기" : "미리보기 (토큰 시뮬레이션)"}
+          {simulating ? tr("미리보기 끄기", "Exit simulation") : tr("미리보기 (토큰 시뮬레이션)", "Preview token flow")}
         </button>
         <span className="flex-1" />
         <label className="btn cursor-pointer">
-          파일 열기<input type="file" accept=".bpmn,.xml" className="hidden" onChange={(e) => onUpload(e.target.files?.[0])} />
+          {tr("파일 열기", "Open file")}<input type="file" accept=".bpmn,.xml" className="hidden" onChange={(e) => onUpload(e.target.files?.[0])} />
         </label>
-        <button className="btn" onClick={() => void onDownload()}>내려받기</button>
+        <button className="btn" onClick={() => void onDownload()}>{tr("내려받기", "Download BPMN")}</button>
         <button className="btn btn-primary" data-testid="compile" onClick={() => void compile()} disabled={compiling || !ready}>
-          {compiling ? "컴파일 중…" : "컴파일"}
+          {compiling ? tr("컴파일 중…", "Compiling…") : tr("컴파일", "Compile")}
         </button>
       </header>
 
@@ -306,16 +351,16 @@ export function Modeler() {
             {ready && modelerRef.current && <PropertiesPanel modeler={modelerRef.current} element={selected} version={version} />}
           </section>
           <section className="border-t border-gray-200 p-3 max-h-[40%] overflow-y-auto" data-testid="diagnostics">
-            <h3 className="font-semibold text-sm mb-1">검사 결과</h3>
+            <h3 className="font-semibold text-sm mb-1">{tr("검사 결과", "Validation")}</h3>
             {diagnostics.length === 0 ? (
-              <p className="text-sm text-green-700">문제 없음 — 컴파일할 수 있어요.</p>
+              <p className="text-sm text-green-700">{tr("문제 없음 — 컴파일할 수 있어요.", "No issues — ready to compile.")}</p>
             ) : (
               <ul className="text-sm space-y-1">
                 {diagnostics.map((d, i) => (
                   <li key={i}>
                     <button className="text-left hover:underline" onClick={() => focusDiagnostic(d)}>
                       <span className="inline-block w-8 text-[11px] text-red-600 font-mono">{d.rule}</span>
-                      {d.message}
+                      {diagnosticText(d.rule, d.message, locale)}
                     </button>
                   </li>
                 ))}
@@ -330,38 +375,40 @@ export function Modeler() {
           <div className="flex items-center gap-3 px-3 py-2 text-sm border-b border-gray-100">
             <span data-testid="compile-status" className={result.ok ? "text-green-700" : "text-red-700"}>
               {result.ok
-                ? `컴파일 성공 — ${result.ir.process.name} (${result.ir.process.id}), solc ${result.solcVersion.split("+")[0]} (${result.evmVersion}), 바이트코드 ${result.bytecodeBytes.toLocaleString()} B, 경고 0`
+                ? locale === "ko"
+                  ? `컴파일 성공 — ${result.ir.process.name} (${result.ir.process.id}), solc ${result.solcVersion.split("+")[0]} (${result.evmVersion}), 바이트코드 ${result.bytecodeBytes.toLocaleString()} B, 경고 0`
+                  : `Compiled — ${result.ir.process.name} (${result.ir.process.id}), solc ${result.solcVersion.split("+")[0]} (${result.evmVersion}), ${result.bytecodeBytes.toLocaleString()} B bytecode, 0 warnings`
                 : result.stage === "rules"
-                  ? "다이어그램을 먼저 고쳐 주세요 (검사 결과 참고)"
+                  ? tr("다이어그램을 먼저 고쳐 주세요 (검사 결과 참고)", "Fix the diagram before compiling (see Validation).")
                   : result.stage === "soundness"
-                    ? "흐름에 문제가 있어요 (막히거나 끝나지 않는 경로)"
-                    : `컴파일 실패 (${result.stage})`}
+                    ? tr("흐름에 문제가 있어요 (막히거나 끝나지 않는 경로)", "The flow can deadlock or leave unfinished paths.")
+                    : `${tr("컴파일 실패", "Compilation failed")} (${result.stage})`}
             </span>
             <span className="flex-1" />
             {result.ok && (
               <>
-                <button className={`btn ${tab === "summary" ? "bg-gray-100" : ""}`} onClick={() => setTab("summary")}>요약</button>
+                <button className={`btn ${tab === "summary" ? "bg-gray-100" : ""}`} onClick={() => setTab("summary")}>{tr("요약", "Summary")}</button>
                 <button className={`btn ${tab === "sol" ? "bg-gray-100" : ""}`} onClick={() => setTab("sol")} data-testid="tab-sol">Solidity</button>
-                <button className="btn" onClick={() => download(`${result.ir.process.id}.sol`, result.sol, "text/plain")}>.sol 내려받기</button>
-                <button className="btn" onClick={downloadBundle} data-testid="bundle" title="소스+ABI+바이트코드+안내문. FISCO BCOS 콘솔/WeBASE, Remix, 다중서명 지갑에서 배포할 때">배포 번들</button>
-                <button className="btn btn-primary" onClick={() => void deploy()} disabled={deploying} data-testid="deploy">{deploying ? "배포 중…" : "배포하기"}</button>
+                <button className="btn" onClick={() => download(`${result.ir.process.id}.sol`, result.sol, "text/plain")}>{tr(".sol 내려받기", "Download .sol")}</button>
+                <button className="btn" onClick={downloadBundle} data-testid="bundle" title={tr("소스+ABI+바이트코드+안내문. FISCO BCOS 콘솔/WeBASE, Remix, 다중서명 지갑에서 배포할 때", "Source, ABI, bytecode, and deployment notes for FISCO BCOS, WeBASE, Remix, or a multisig wallet.")}>{tr("배포 번들", "Deployment bundle")}</button>
+                <button className="btn btn-primary" onClick={() => void deploy()} disabled={deploying} data-testid="deploy">{deploying ? tr("배포 중…", "Deploying…") : tr("배포하기", "Deploy")}</button>
                 {deployError && <span className="text-red-600" data-testid="deploy-error">{deployError}</span>}
               </>
             )}
-            <button className="btn" onClick={() => setResult(null)}>닫기</button>
+            <button className="btn" onClick={() => setResult(null)}>{tr("닫기", "Close")}</button>
           </div>
           <div className="overflow-auto p-3 text-sm">
             {result.ok ? (
               <>
                 <div className={tab === "summary" ? "" : "hidden"} data-testid="summary">
                   <ul className="grid grid-cols-2 gap-x-6 gap-y-1">
-                    <li>역할: {result.ir.roles.map((r) => r.label).join(", ")}</li>
-                    <li>할 일: {result.ir.nodes.filter((n) => n.kind === "userTask").length}개, 화살표: {result.ir.flows.length}개</li>
-                    <li>도달 가능한 상태: {result.states}개</li>
-                    <li>실행 경로: {result.paths.length}개</li>
+                    <li>{tr("역할", "Roles")}: {result.ir.roles.map((r) => r.label).join(", ")}</li>
+                    <li>{tr("할 일", "Tasks")}: {result.ir.nodes.filter((n) => n.kind === "userTask").length}, {tr("화살표", "flows")}: {result.ir.flows.length}</li>
+                    <li>{tr("도달 가능한 상태", "Reachable states")}: {result.states}</li>
+                    <li>{tr("실행 경로", "Execution paths")}: {result.paths.length}</li>
                   </ul>
                   <ol className="mt-2 list-decimal list-inside text-gray-600">
-                    {result.paths.map((p, i) => <li key={i}>{p.description} → {p.outcome === "completed" ? "완료" : p.outcome}</li>)}
+                    {result.paths.map((p, i) => <li key={i}>{p.description} → {p.outcome === "completed" ? tr("완료", "completed") : p.outcome}</li>)}
                   </ol>
                 </div>
                 <pre className={`font-mono text-xs whitespace-pre ${tab === "sol" ? "" : "hidden"}`} data-testid="solidity">{result.sol}</pre>

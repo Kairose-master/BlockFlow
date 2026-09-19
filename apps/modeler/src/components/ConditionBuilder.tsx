@@ -4,6 +4,7 @@
  * 여러 줄은 하나의 연결어(그리고/또는)로 잇는다. 빌더가 표현 못 하는 식은 "직접 입력" 으로.
  */
 import { useMemo } from "react";
+import { useI18n } from "@/lib/i18n";
 
 interface Row {
   variable: string;
@@ -12,20 +13,20 @@ interface Row {
 }
 
 const NUM_OPS = [
-  { value: ">", label: "보다 큼" },
-  { value: ">=", label: "이상" },
-  { value: "<", label: "보다 작음" },
-  { value: "<=", label: "이하" },
-  { value: "==", label: "같음" },
-  { value: "!=", label: "다름" },
+  { value: ">", ko: "보다 큼", en: "is greater than" },
+  { value: ">=", ko: "이상", en: "is at least" },
+  { value: "<", ko: "보다 작음", en: "is less than" },
+  { value: "<=", ko: "이하", en: "is at most" },
+  { value: "==", ko: "같음", en: "equals" },
+  { value: "!=", ko: "다름", en: "does not equal" },
 ];
 const BOOL_OPS = [
-  { value: "true", label: "예 이면" },
-  { value: "false", label: "아니오 이면" },
+  { value: "true", ko: "예 이면", en: "is Yes" },
+  { value: "false", ko: "아니오 이면", en: "is No" },
 ];
 const ADDR_OPS = [
-  { value: "==", label: "이 역할의 담당자와 같음" },
-  { value: "!=", label: "이 역할의 담당자와 다름" },
+  { value: "==", ko: "이 역할의 담당자와 같음", en: "is assigned to this role" },
+  { value: "!=", ko: "이 역할의 담당자와 다름", en: "is not assigned to this role" },
 ];
 
 export function parseRows(expr: string): { rows: Row[]; joiner: "&&" | "||" } | null {
@@ -64,8 +65,9 @@ export function ConditionBuilder({ value, variables, roles, onChange }: {
   roles: string[];
   onChange: (expr: string) => void;
 }) {
+  const { locale, tr } = useI18n();
   const parsed = useMemo(() => parseRows(value), [value]);
-  if (!parsed) return <p className="text-xs text-amber-600">이 조건은 빌더로 표현할 수 없어요. "직접 입력" 으로 고치세요: <code>{value}</code></p>;
+  if (!parsed) return <p className="text-xs text-amber-600">{tr("이 조건은 빌더로 표현할 수 없어요. \"직접 입력\" 으로 고치세요:", "This expression is outside the visual builder. Edit the expression directly:")} <code>{value}</code></p>;
   const { rows, joiner } = parsed;
   const typeOf = (name: string) => variables.find((v) => v.name === name)?.type ?? "uint256";
   const set = (next: Row[], j = joiner) => onChange(serializeRows(next, j));
@@ -76,18 +78,18 @@ export function ConditionBuilder({ value, variables, roles, onChange }: {
   };
   return (
     <div data-testid="condition-builder">
-      {variables.length === 0 && <p className="text-[11px] text-gray-400 mb-2">먼저 프로세스에 값을 추가하세요.</p>}
+      {variables.length === 0 && <p className="text-[11px] text-gray-400 mb-2">{tr("먼저 프로세스에 값을 추가하세요.", "Add a process data field first.")}</p>}
       {rows.map((r, i) => {
         const t = typeOf(r.variable);
         return (
           <div key={i} className="flex flex-wrap items-center gap-1 mb-1">
             {i > 0 && (
               <select className={sel} value={joiner} onChange={(e) => set(rows, e.target.value as "&&" | "||")}>
-                <option value="&&">그리고</option>
-                <option value="||">또는</option>
+                <option value="&&">{tr("그리고", "and")}</option>
+                <option value="||">{tr("또는", "or")}</option>
               </select>
             )}
-            {i === 0 && <span className="text-xs text-gray-500">만약</span>}
+            {i === 0 && <span className="text-xs text-gray-500">{tr("만약", "If")}</span>}
             <select className={sel} value={r.variable} data-testid={`cond-var-${i}`}
               onChange={(e) => {
                 const nt = typeOf(e.target.value);
@@ -97,9 +99,9 @@ export function ConditionBuilder({ value, variables, roles, onChange }: {
               }}>
               {variables.map((v) => <option key={v.name} value={v.name}>{v.name}</option>)}
             </select>
-            <span className="text-xs text-gray-500">이</span>
+            <span className="text-xs text-gray-500">{locale === "ko" ? "이" : ""}</span>
             <select className={sel} value={r.op} data-testid={`cond-op-${i}`} onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, op: e.target.value } : x)))}>
-              {(t === "bool" ? BOOL_OPS : t === "address" ? ADDR_OPS : NUM_OPS).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {(t === "bool" ? BOOL_OPS : t === "address" ? ADDR_OPS : NUM_OPS).map((o) => <option key={o.value} value={o.value}>{locale === "ko" ? o.ko : o.en}</option>)}
             </select>
             {t === "address" ? (
               <select className={sel} value={r.value} onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))}>
@@ -108,11 +110,11 @@ export function ConditionBuilder({ value, variables, roles, onChange }: {
             ) : t !== "bool" ? (
               <input className={`${sel} w-24`} value={r.value} data-testid={`cond-val-${i}`} onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
             ) : null}
-            <button className="text-gray-400 hover:text-red-600" title="삭제" onClick={() => set(rows.filter((_, j) => j !== i))}>✕</button>
+            <button className="text-gray-400 hover:text-red-600" title={tr("삭제", "Delete")} onClick={() => set(rows.filter((_, j) => j !== i))}>✕</button>
           </div>
         );
       })}
-      <button className="text-sm text-blue-600 hover:underline disabled:text-gray-300" disabled={!variables.length} onClick={() => set([...rows, defaultRow()])} data-testid="cond-add">+ 조건 추가</button>
+      <button className="text-sm text-blue-600 hover:underline disabled:text-gray-300" disabled={!variables.length} onClick={() => set([...rows, defaultRow()])} data-testid="cond-add">{tr("+ 조건 추가", "+ Add condition")}</button>
     </div>
   );
 }

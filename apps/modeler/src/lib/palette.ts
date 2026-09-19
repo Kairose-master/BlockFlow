@@ -26,17 +26,17 @@ class BlockFlowPaletteProvider {
       return { group, className, title, action: { dragstart: listener, click: listener } };
     };
     return {
-      "hand-tool": { group: "tools", className: "bpmn-icon-hand-tool", title: "화면 이동", action: { click: (e: unknown) => handTool.activateHand(e) } },
-      "lasso-tool": { group: "tools", className: "bpmn-icon-lasso-tool", title: "여러 개 선택", action: { click: (e: unknown) => lassoTool.activateSelection(e) } },
+      "hand-tool": { group: "tools", className: "bpmn-icon-hand-tool", title: "화면 이동 / Pan canvas", action: { click: (e: unknown) => handTool.activateHand(e) } },
+      "lasso-tool": { group: "tools", className: "bpmn-icon-lasso-tool", title: "여러 개 선택 / Multi-select", action: { click: (e: unknown) => lassoTool.activateSelection(e) } },
       "tool-separator": { group: "tools", separator: true },
-      "create.start-event": createAction("bpmn:StartEvent", "event", "bpmn-icon-start-event-none", "시작"),
-      "create.end-event": createAction("bpmn:EndEvent", "event", "bpmn-icon-end-event-none", "끝"),
-      "create.user-task": createAction("bpmn:UserTask", "activity", "bpmn-icon-user-task", "할 일 (사용자 태스크)"),
-      "create.service-task": createAction("bpmn:ServiceTask", "activity", "bpmn-icon-service-task", "외부 서비스 (오라클이 값을 돌려줌)"),
-      "create.exclusive-gateway": createAction("bpmn:ExclusiveGateway", "gateway", "bpmn-icon-gateway-xor", "조건에 따라 갈라짐 (XOR)"),
-      "create.parallel-gateway": createAction("bpmn:ParallelGateway", "gateway", "bpmn-icon-gateway-parallel", "동시에 진행 (AND)"),
+      "create.start-event": createAction("bpmn:StartEvent", "event", "bpmn-icon-start-event-none", "시작 / Start"),
+      "create.end-event": createAction("bpmn:EndEvent", "event", "bpmn-icon-end-event-none", "끝 / End"),
+      "create.user-task": createAction("bpmn:UserTask", "activity", "bpmn-icon-user-task", "할 일 / Human task"),
+      "create.service-task": createAction("bpmn:ServiceTask", "activity", "bpmn-icon-service-task", "외부 서비스 / Oracle task"),
+      "create.exclusive-gateway": createAction("bpmn:ExclusiveGateway", "gateway", "bpmn-icon-gateway-xor", "조건 분기 / XOR gateway"),
+      "create.parallel-gateway": createAction("bpmn:ParallelGateway", "gateway", "bpmn-icon-gateway-parallel", "동시 진행 / AND gateway"),
       "create.timer-boundary": {
-        group: "event", className: "bpmn-icon-intermediate-event-catch-timer", title: "기한 (할 일 위에 놓으세요)",
+        group: "event", className: "bpmn-icon-intermediate-event-catch-timer", title: "기한 / Deadline (attach to a task)",
         action: {
           click: (event: unknown) => create.start(event, elementFactory.createShape({ type: "bpmn:BoundaryEvent", eventDefinitionType: "bpmn:TimerEventDefinition" })),
           dragstart: (event: unknown) => create.start(event, elementFactory.createShape({ type: "bpmn:BoundaryEvent", eventDefinitionType: "bpmn:TimerEventDefinition" })),

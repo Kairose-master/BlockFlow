@@ -12,6 +12,7 @@ import { api, short } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useUser } from "./Shell";
 import { TaskForm } from "./TaskForm";
+import { type Locale, useI18n } from "@/lib/i18n";
 
 interface Instance {
   id: string;
@@ -42,14 +43,15 @@ interface Accounts {
   users: { address: string; label: string }[];
 }
 
-function fmtLeft(sec: number): string {
-  if (sec >= 86400) return `${Math.floor(sec / 86400)}일 ${Math.floor((sec % 86400) / 3600)}시간`;
-  if (sec >= 3600) return `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분`;
-  if (sec >= 60) return `${Math.floor(sec / 60)}분`;
-  return `${sec}초`;
+function fmtLeft(sec: number, locale: Locale): string {
+  if (sec >= 86400) return locale === "ko" ? `${Math.floor(sec / 86400)}일 ${Math.floor((sec % 86400) / 3600)}시간` : `${Math.floor(sec / 86400)}d ${Math.floor((sec % 86400) / 3600)}h`;
+  if (sec >= 3600) return locale === "ko" ? `${Math.floor(sec / 3600)}시간 ${Math.floor((sec % 3600) / 60)}분` : `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`;
+  if (sec >= 60) return locale === "ko" ? `${Math.floor(sec / 60)}분` : `${Math.floor(sec / 60)}m`;
+  return locale === "ko" ? `${sec}초` : `${sec}s`;
 }
 
 export function Board({ address }: { address: string }) {
+  const { locale, tr } = useI18n();
   const user = useUser();
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
@@ -132,7 +134,7 @@ export function Board({ address }: { address: string }) {
     setError("");
     try {
       await api(`/api/processes/${address}/tasks`, { method: "POST", body: JSON.stringify({ instance, task: taskName, expire: true }) });
-      setNotice("기한이 지나 만료 처리했어요.");
+      setNotice(tr("기한이 지나 만료 처리했어요.", "The overdue task was expired."));
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -159,7 +161,7 @@ export function Board({ address }: { address: string }) {
     }
   };
 
-  if (!data) return <div className="p-6 text-sm text-gray-500">불러오는 중…</div>;
+  if (!data) return <div className="p-6 text-sm text-gray-500">{tr("불러오는 중…", "Loading…")}</div>;
   const inst = data.instances.find((i) => i.id === selected);
   const label = (addr: string) => users.find((u) => u.address.toLowerCase() === addr.toLowerCase())?.label ?? short(addr);
   const assignee = (t: { role: string; service?: boolean }, i: Instance) => (t.service ? (data.oracle ?? "") : (i.roles[t.role] ?? ""));
@@ -172,10 +174,10 @@ export function Board({ address }: { address: string }) {
           <span className="font-semibold text-base">{data.ir.process.name}</span>
           <span className="text-xs text-gray-500" data-testid="board-version">v{data.version}</span>
           <span className="text-xs text-gray-500 font-mono">{short(data.address)}</span>
-          {data.supersededBy && <a className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 underline" href={`/processes/${data.supersededBy}`}>이전 버전 — 새 버전으로 이동</a>}
-          {data.paused && <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">일시정지</span>}
+          {data.supersededBy && <a className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 underline" href={`/processes/${data.supersededBy}`}>{tr("이전 버전 — 새 버전으로 이동", "Previous version — open the current version")}</a>}
+          {data.paused && <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">{tr("일시정지", "Paused")}</span>}
           <span className="flex-1" />
-          <button className="btn" data-testid="edit-diagram" title="이 다이어그램을 모델러에서 열어요. 고쳐서 배포하면 새 버전(C6)이 돼요."
+          <button className="btn" data-testid="edit-diagram" title={tr("이 다이어그램을 모델러에서 열어요. 고쳐서 배포하면 새 버전(C6)이 돼요.", "Open this diagram in the modeler. Deploying edits creates a new version.")}
             onClick={() => {
               try {
                 sessionStorage.setItem("blockflow.open", data.xml);
@@ -184,10 +186,10 @@ export function Board({ address }: { address: string }) {
               }
               router.push("/");
             }}>
-            다이어그램 편집 (새 버전)
+            {tr("다이어그램 편집 (새 버전)", "Edit diagram (new version)")}
           </button>
           <button className="btn btn-primary" onClick={() => { setRoleChoice(Object.fromEntries(data.ir.roles.map((r, i) => [r.key, users[(i + 1) % Math.max(users.length, 1)]?.address ?? ""]))); setCreating(true); }} disabled={data.paused || !!data.supersededBy} data-testid="new-instance">
-            새 건 시작
+            {tr("새 건 시작", "Start instance")}
           </button>
         </div>
         <div ref={ref} className="flex-1 min-h-0" data-testid="board-canvas" />
@@ -195,10 +197,10 @@ export function Board({ address }: { address: string }) {
           <div className="border-t border-gray-200 bg-white px-4 py-2 text-sm flex items-center gap-4" data-testid="instance-status">
             <span className="font-semibold">#{inst.id}</span>
             {inst.ended ? (
-              <span className={inst.outcome === "completed" ? "text-green-700" : "text-amber-700"}>{inst.outcome === "completed" ? "정상 완료" : "중단(반려)"}</span>
+              <span className={inst.outcome === "completed" ? "text-green-700" : "text-amber-700"}>{inst.outcome === "completed" ? tr("정상 완료", "Completed") : tr("중단(반려)", "Stopped / rejected")}</span>
             ) : (
               <span>
-                지금 할 수 있는 일: {inst.enabled.length ? inst.enabled.map((t) => `[${t.label}] ← ${t.service ? "외부 서비스 응답 대기" : label(inst.roles[t.role] ?? "")}`).join(", ") : "없음"}
+                {tr("지금 할 수 있는 일", "Enabled tasks")}: {inst.enabled.length ? inst.enabled.map((t) => `[${t.label}] ← ${t.service ? tr("외부 서비스 응답 대기", "waiting for oracle") : label(inst.roles[t.role] ?? "")}`).join(", ") : tr("없음", "none")}
               </span>
             )}
           </div>
@@ -209,7 +211,7 @@ export function Board({ address }: { address: string }) {
         {notice && <p className="text-sm text-green-700 p-3 border-b border-gray-100" data-testid="task-done">{notice}</p>}
         {creating && (
           <div className="p-3 border-b border-gray-200" data-testid="create-dialog">
-            <h3 className="font-semibold mb-2">새 건 시작 — 담당자 지정</h3>
+            <h3 className="font-semibold mb-2">{tr("새 건 시작 — 담당자 지정", "Start instance — assign roles")}</h3>
             {data.ir.roles.map((r) => (
               <label key={r.key} className="block mb-2 text-sm">
                 <span className="block text-xs text-gray-600">{r.label}</span>
@@ -219,18 +221,18 @@ export function Board({ address }: { address: string }) {
               </label>
             ))}
             <div className="flex gap-2">
-              <button className="btn btn-primary" onClick={() => void createInstance()} data-testid="create-confirm">시작</button>
-              <button className="btn" onClick={() => setCreating(false)}>취소</button>
+              <button className="btn btn-primary" onClick={() => void createInstance()} data-testid="create-confirm">{tr("시작", "Start")}</button>
+              <button className="btn" onClick={() => setCreating(false)}>{tr("취소", "Cancel")}</button>
             </div>
           </div>
         )}
         <div className="p-3 border-b border-gray-200">
-          <h3 className="font-semibold text-sm mb-2">진행 건 ({data.instances.length})</h3>
+          <h3 className="font-semibold text-sm mb-2">{tr("진행 건", "Instances")} ({data.instances.length})</h3>
           <ul className="space-y-1 max-h-48 overflow-y-auto text-sm">
             {data.instances.map((i) => (
               <li key={i.id}>
                 <button className={`w-full text-left px-2 py-1 rounded ${i.id === selected ? "bg-blue-50" : "hover:bg-gray-50"}`} onClick={() => setSelected(i.id)} data-testid={`instance-${i.id}`}>
-                  #{i.id} {i.ended ? (i.outcome === "completed" ? "✓ 완료" : "✕ 중단") : `· ${i.enabled.map((t) => t.label).join(", ") || "대기"}`}
+                  #{i.id} {i.ended ? (i.outcome === "completed" ? tr("✓ 완료", "✓ completed") : tr("✕ 중단", "✕ stopped")) : `· ${i.enabled.map((t) => t.label).join(", ") || tr("대기", "waiting")}`}
                 </button>
               </li>
             ))}
@@ -238,7 +240,7 @@ export function Board({ address }: { address: string }) {
         </div>
         {inst && (
           <div className="p-3 border-b border-gray-200 text-sm">
-            <h3 className="font-semibold mb-2">담당자</h3>
+            <h3 className="font-semibold mb-2">{tr("담당자", "Assignees")}</h3>
             {data.ir.roles.map((r) => (
               <div key={r.key} className="flex items-center gap-2 mb-1">
                 <span className="w-16 text-xs text-gray-600">{r.label}</span>
@@ -255,36 +257,36 @@ export function Board({ address }: { address: string }) {
         )}
         {inst && !inst.ended && inst.timers && Object.keys(inst.timers).length > 0 && (
           <div className="p-3 border-b border-gray-200 text-sm" data-testid="timers">
-            <h3 className="font-semibold mb-2">기한</h3>
+            <h3 className="font-semibold mb-2">{tr("기한", "Deadlines")}</h3>
             {inst.enabled.filter((t) => inst.timers?.[t.id]).map((t) => {
               const left = inst.timers![t.id]!.expiresAt - data.now;
               return (
                 <div key={t.id} className="flex items-center gap-2 mb-1">
                   <span>[{t.label}]</span>
-                  {left > 0 ? <span className="text-gray-500">{fmtLeft(left)} 남음</span> : <span className="text-amber-700">기한 지남</span>}
-                  {left <= 0 && <button className="btn" onClick={() => void expire(inst.id, t.name)} data-testid={`expire-${t.name}`}>만료 처리</button>}
+                  {left > 0 ? <span className="text-gray-500">{fmtLeft(left, locale)} {tr("남음", "left")}</span> : <span className="text-amber-700">{tr("기한 지남", "Overdue")}</span>}
+                  {left <= 0 && <button className="btn" onClick={() => void expire(inst.id, t.name)} data-testid={`expire-${t.name}`}>{tr("만료 처리", "Expire")}</button>}
                 </div>
               );
             })}
             {data.mode === "local" && (
               <div className="mt-2 text-xs text-gray-500">
-                개발용:{" "}
-                <button className="underline" onClick={() => void skipTime(3600)} data-testid="skip-1h">1시간 건너뛰기</button>{" · "}
-                <button className="underline" onClick={() => void skipTime(86400)} data-testid="skip-1d">하루 건너뛰기</button>
+                {tr("개발용", "Development")}: {" "}
+                <button className="underline" onClick={() => void skipTime(3600)} data-testid="skip-1h">{tr("1시간 건너뛰기", "Skip 1 hour")}</button>{" · "}
+                <button className="underline" onClick={() => void skipTime(86400)} data-testid="skip-1d">{tr("하루 건너뛰기", "Skip 1 day")}</button>
               </div>
             )}
           </div>
         )}
         {inst && myTasks.length > 0 && (
           <div className="p-3 border-b border-gray-200">
-            <h3 className="font-semibold text-sm mb-2">내 차례</h3>
+            <h3 className="font-semibold text-sm mb-2">{tr("내 차례", "My enabled tasks")}</h3>
             {myTasks.map((t) => (
               <TaskForm key={t.id} address={address} ir={data.ir} instance={inst.id} task={t} onDone={(m) => { setNotice(m); void load(); }} />
             ))}
           </div>
         )}
         <div className="p-3 overflow-y-auto flex-1 min-h-0 text-sm">
-          <h3 className="font-semibold mb-2">기록</h3>
+          <h3 className="font-semibold mb-2">{tr("기록", "History")}</h3>
           <ul className="space-y-1">
             {data.timeline.filter((t) => t.kind !== "markingChanged" && t.kind !== "roleBound" && (!selected || t.instance === selected || t.instance === "0")).slice(0, 50).map((t, i) => (
               <li key={i} className="text-gray-700">

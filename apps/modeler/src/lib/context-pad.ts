@@ -6,11 +6,11 @@
 type Entry = Record<string, unknown>;
 
 const APPENDABLE = [
-  { type: "bpmn:UserTask", className: "bpmn-icon-user-task", title: "할 일 이어 붙이기" },
-  { type: "bpmn:ServiceTask", className: "bpmn-icon-service-task", title: "외부 서비스 이어 붙이기" },
-  { type: "bpmn:ExclusiveGateway", className: "bpmn-icon-gateway-xor", title: "조건 분기 이어 붙이기" },
-  { type: "bpmn:ParallelGateway", className: "bpmn-icon-gateway-parallel", title: "동시 진행 이어 붙이기" },
-  { type: "bpmn:EndEvent", className: "bpmn-icon-end-event-none", title: "끝 이어 붙이기" },
+  { type: "bpmn:UserTask", className: "bpmn-icon-user-task", title: "할 일 이어 붙이기 / Append human task" },
+  { type: "bpmn:ServiceTask", className: "bpmn-icon-service-task", title: "외부 서비스 이어 붙이기 / Append oracle task" },
+  { type: "bpmn:ExclusiveGateway", className: "bpmn-icon-gateway-xor", title: "조건 분기 이어 붙이기 / Append XOR gateway" },
+  { type: "bpmn:ParallelGateway", className: "bpmn-icon-gateway-parallel", title: "동시 진행 이어 붙이기 / Append AND gateway" },
+  { type: "bpmn:EndEvent", className: "bpmn-icon-end-event-none", title: "끝 이어 붙이기 / Append end event" },
 ];
 
 class BlockFlowContextPadProvider {
@@ -34,14 +34,14 @@ class BlockFlowContextPadProvider {
     const isLabel = !!element.labelTarget;
     if (isLabel) return entries;
 
-    const remove = { group: "edit", className: "bpmn-icon-trash", title: "삭제", action: { click: () => modeling.removeElements([element]) } };
+    const remove = { group: "edit", className: "bpmn-icon-trash", title: "삭제 / Delete", action: { click: () => modeling.removeElements([element]) } };
 
     if (type === "bpmn:Participant") {
-      entries["lane-add"] = { group: "edit", className: "bpmn-icon-lane-insert-below", title: "역할(레인) 추가", action: { click: () => addLane(modeling, element) } };
+      entries["lane-add"] = { group: "edit", className: "bpmn-icon-lane-insert-below", title: "역할(레인) 추가 / Add role lane", action: { click: () => addLane(modeling, element) } };
       return entries;
     }
     if (type === "bpmn:Lane") {
-      entries["lane-add"] = { group: "edit", className: "bpmn-icon-lane-insert-below", title: "아래에 역할 추가", action: { click: () => modeling.addLane(element, "bottom") } };
+      entries["lane-add"] = { group: "edit", className: "bpmn-icon-lane-insert-below", title: "아래에 역할 추가 / Add role below", action: { click: () => modeling.addLane(element, "bottom") } };
       entries["delete"] = remove;
       return entries;
     }
@@ -51,7 +51,7 @@ class BlockFlowContextPadProvider {
     }
     if (type === "bpmn:BoundaryEvent") {
       entries["connect"] = {
-        group: "connect", className: "bpmn-icon-connection-multi", title: "기한이 지나면 갈 곳으로 연결",
+        group: "connect", className: "bpmn-icon-connection-multi", title: "기한이 지나면 갈 곳으로 연결 / Connect expiry flow",
         action: { click: (e: unknown) => connect.start(e, element), dragstart: (e: unknown) => connect.start(e, element) },
       };
       entries["delete"] = remove;
@@ -66,7 +66,7 @@ class BlockFlowContextPadProvider {
         entries[`append.${a.type}`] = { group: "model", className: a.className, title: a.title, action: { click, dragstart: start } };
       }
       entries["connect"] = {
-        group: "connect", className: "bpmn-icon-connection-multi", title: "화살표 연결",
+        group: "connect", className: "bpmn-icon-connection-multi", title: "화살표 연결 / Connect flow",
         action: { click: (e: unknown) => connect.start(e, element), dragstart: (e: unknown) => connect.start(e, element) },
       };
     }

@@ -9,6 +9,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 const REFERENCE = readFileSync(join(__dirname, "..", "..", "..", "contracts", "src", "ExpenseApproval.sol"), "utf8");
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("blockflow.locale.v1", "ko"));
+});
+
 async function openExample(page: Page, name: string, waitFor = "Task_Submit") {
   await page.goto("/");
   await page.getByTestId("example-select").selectOption(name);
@@ -21,6 +25,16 @@ test("팔레트는 L0 요소 + L1(외부 서비스, 기한)만 보여준다", as
   await expect(entries).toHaveCount(9); // 손, 선택, 시작, 끝, 할 일, 외부 서비스, XOR, AND, 기한
   await expect(page.locator(".djs-palette .bpmn-icon-subprocess-expanded")).toHaveCount(0);
   await expect(page.locator(".djs-palette .bpmn-icon-task")).toHaveCount(0);
+});
+
+test("언어 전환은 모델러 핵심 흐름을 영어로 바꾸고 선택을 저장한다", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("locale-toggle").click();
+  await expect(page.getByTestId("new-diagram")).toHaveText("New diagram");
+  await expect(page.getByTestId("diagnostics")).toContainText("Validation");
+  await expect(page.getByTestId("example-select")).toContainText("Expense approval");
+  await page.reload();
+  await expect(page.getByTestId("new-diagram")).toHaveText("New diagram");
 });
 
 test("예시(경비 승인)를 열면 규칙 통과, 컴파일 결과가 부록 C 와 같다", async ({ page }) => {
