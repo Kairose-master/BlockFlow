@@ -107,6 +107,8 @@ docs/          구현 가이드 PDF, 설계 요약
 
 ## 시작하기
 
+호스팅 데모: Vercel 에 `apps/modeler` 를 로컬 모드로 올린다(아래 "Vercel 배포"). 서버리스라 인메모리 체인은 인스턴스마다 따로 있고 잠시 쉬면 초기화되므로 둘러보기용이다. 실제 사용은 rpc 모드.
+
 Node ≥ 22, pnpm 10.
 
 ```bash
@@ -120,6 +122,13 @@ pnpm codegen packages/ir/examples/expense-approval.json          # IR → Solidi
 pnpm gen:examples    # BPMN 예시 → contracts/src/*.sol + contracts/test/generated/*.t.sol 재생성
 pnpm bench           # 예시 9개 측정표 → docs/measurements.md (가이드 6.8·11장)
 ```
+
+### Vercel 배포
+
+Vercel 프로젝트를 저장소에 연결하고 Root Directory 를 `apps/modeler` 로 두면 끝이다(설치는 루트 `pnpm install`, 빌드 `next build`).
+`next.config.ts` 의 `outputFileTracingIncludes` 가 API 가 파일로 읽는 codegen 템플릿과 BPMN 예시를 함수 번들에 넣는다.
+환경 변수를 안 주면 로컬 모드다. 지속되는 배포는 `BLOCKFLOW_RPC_URL`·`BLOCKFLOW_CHAIN_ID`·`BLOCKFLOW_KEYS` 를 주고 rpc 모드로 쓰되,
+`.blockflow/state.json` 은 서버리스에서 남지 않으므로 인덱서가 매번 체인에서 재생한다(배포 목록은 `BLOCKFLOW_STATE` 를 쓸 수 있는 파일시스템이 있어야 유지).
 
 Foundry 가 있으면:
 
